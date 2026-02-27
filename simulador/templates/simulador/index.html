@@ -137,6 +137,50 @@
                                       rows="3" placeholder="Observações sobre o cliente ou a negociação…">{{ request.POST.observacoes }}</textarea>
                         </div>
 
+                        <!-- Seguros MIP + DFI -->
+                        <div class="col-12">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <label class="form-label mb-0">
+                                    <i class="bi bi-shield-check me-1"></i>Seguros MIP + DFI
+                                    <small class="text-muted fw-normal">(opcional)</small>
+                                </label>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-2"
+                                        data-bs-toggle="collapse" data-bs-target="#seguroFields">
+                                    <i class="bi bi-chevron-down" id="seguroChevron"></i>
+                                </button>
+                            </div>
+                            <div class="collapse" id="seguroFields">
+                                <div class="row g-2 p-3 rounded-3" style="background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.15)">
+                                    <div class="col-12 col-md-6">
+                                        <label for="mip_mensal" class="form-label small fw-semibold">
+                                            MIP — Morte e Invalidez (% a.m. sobre saldo devedor)
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" id="mip_mensal" name="mip_mensal"
+                                                   class="form-control" step="0.001" min="0" max="5"
+                                                   placeholder="ex: 0.036"
+                                                   value="{{ request.POST.mip_mensal }}">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <div class="form-text">Típico: 0.036% a.m.</div>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="dfi_mensal" class="form-label small fw-semibold">
+                                            DFI — Danos ao Imóvel (% a.m. sobre valor do imóvel)
+                                        </label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" id="dfi_mensal" name="dfi_mensal"
+                                                   class="form-control" step="0.0001" min="0" max="5"
+                                                   placeholder="ex: 0.0125"
+                                                   value="{{ request.POST.dfi_mensal }}">
+                                            <span class="input-group-text">%</span>
+                                        </div>
+                                        <div class="form-text">Típico: 0.0125% a.m.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <!-- Sistema de Amortização -->
                         <div class="col-12">
                             <label class="form-label d-block">
@@ -237,6 +281,26 @@
                         <div class="value">R$ {{ resultado.total_pago|brl }}</div>
                     </div>
                 </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Total de Juros</div>
+                        <div class="value text-danger">R$ {{ resultado.total_juros|brl }}</div>
+                    </div>
+                </div>
+                {% if resultado.usar_seguro %}
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Total Seguros</div>
+                        <div class="value text-warning">R$ {{ resultado.total_seguros|brl }}</div>
+                    </div>
+                </div>
+                {% endif %}
+                <div class="col-12 {% if resultado.usar_seguro %}col-md-3{% else %}col-md-6{% endif %}">
+                    <div class="summary-item">
+                        <div class="label">Custo Total de Aquisição</div>
+                        <div class="value">R$ {{ resultado.custo_total|brl }}</div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -253,32 +317,58 @@
                                 <th>Parcela (R$)</th>
                                 <th>Amortização (R$)</th>
                                 <th>Juros (R$)</th>
+                                {% if resultado.usar_seguro %}<th>Seguro (R$)</th>{% endif %}
                                 <th>Saldo Devedor (R$)</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for parcela in resultado.parcelas %}
+                            {% if forloop.counter == 13 %}</tbody><tbody id="parcelasExtras" style="display:none">{% endif %}
                             <tr>
                                 <td><span class="badge bg-secondary">{{ parcela.numero }}</span></td>
                                 <td class="fw-semibold text-primary">{{ parcela.valor|brl }}</td>
                                 <td>{{ parcela.amortizacao|brl }}</td>
                                 <td class="text-danger">{{ parcela.juros|brl }}</td>
+                                {% if resultado.usar_seguro %}<td class="text-warning">{{ parcela.seguro|brl }}</td>{% endif %}
                                 <td>{{ parcela.saldo_devedor|brl }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
+                {% if resultado.parcelas|length > 12 %}
+                <div class="p-3 text-center border-top">
+                    <button id="btnVerTodas" class="btn btn-sm btn-outline-primary rounded-pill">
+                        <i class="bi bi-chevron-down me-1"></i>Ver todas ({{ resultado.parcelas|length }} parcelas)
+                    </button>
+                </div>
+                {% endif %}
             </div>
         </div>
 
-        <!-- Gráfico de evolução do saldo devedor -->
-        <div class="card mt-4">
-            <div class="card-header py-3">
-                <i class="bi bi-graph-down me-2"></i>Evolução do Saldo Devedor
+        <!-- Gráficos -->
+        <div class="row mt-4 g-4">
+            <!-- Evolução do Saldo Devedor -->
+            <div class="col-12 col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header py-3">
+                        <i class="bi bi-graph-down me-2"></i>Evolução do Saldo Devedor
+                    </div>
+                    <div class="card-body p-3">
+                        <canvas id="saldoChart" height="110"></canvas>
+                    </div>
+                </div>
             </div>
-            <div class="card-body p-3">
-                <canvas id="saldoChart" height="80"></canvas>
+            <!-- Composição do custo total -->
+            <div class="col-12 col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header py-3">
+                        <i class="bi bi-pie-chart-fill me-2"></i>Composição do Custo
+                    </div>
+                    <div class="card-body d-flex align-items-center justify-content-center p-3">
+                        <canvas id="pizzaChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -325,6 +415,35 @@ new Chart(document.getElementById('saldoChart'), {
         }
     }
 });
+
+new Chart(document.getElementById('pizzaChart'), {
+    type: 'doughnut',
+    data: {
+        labels: ['Entrada', 'Principal', 'Juros'],
+        datasets: [{
+            data: [
+                {{ resultado.entrada }},
+                {{ resultado.valor_financiado }},
+                {{ resultado.total_juros }}
+            ],
+            backgroundColor: ['#10b981', '#3b82f6', '#ef4444'],
+            borderWidth: 0,
+            hoverOffset: 6,
+        }]
+    },
+    options: {
+        responsive: true,
+        cutout: '62%',
+        plugins: {
+            legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ' R$ ' + ctx.parsed.toLocaleString('pt-BR', {minimumFractionDigits:2})
+                }
+            }
+        }
+    }
+});
 </script>
 {% endif %}
 <script>
@@ -355,5 +474,30 @@ document.querySelector('form').addEventListener('submit', function () {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Calculando…';
 });
+
+{% if resultado.parcelas|length > 12 %}
+// Expandir/recolher parcelas extras
+document.getElementById('btnVerTodas').addEventListener('click', function () {
+    const extras = document.getElementById('parcelasExtras');
+    const hidden = extras.style.display === 'none';
+    extras.style.display = hidden ? '' : 'none';
+    this.innerHTML = hidden
+        ? '<i class="bi bi-chevron-up me-1"></i>Ocultar parcelas'
+        : '<i class="bi bi-chevron-down me-1"></i>Ver todas ({{ resultado.parcelas|length }} parcelas)';
+});
+{% endif %}
+
+// Rotacionar chevron do painel de seguros
+const _seguroEl = document.getElementById('seguroFields');
+if (_seguroEl) {
+    // Auto-abrir se foram preenchidos antes do submit
+    {% if request.POST.mip_mensal or request.POST.dfi_mensal %}
+    new bootstrap.Collapse(_seguroEl, {show: true});
+    {% endif %}
+    _seguroEl.addEventListener('show.bs.collapse', () =>
+        document.getElementById('seguroChevron').classList.replace('bi-chevron-down', 'bi-chevron-up'));
+    _seguroEl.addEventListener('hide.bs.collapse', () =>
+        document.getElementById('seguroChevron').classList.replace('bi-chevron-up', 'bi-chevron-down'));
+}
 </script>
 {% endblock %}

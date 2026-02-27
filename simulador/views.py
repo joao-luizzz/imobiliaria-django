@@ -43,6 +43,8 @@ def simular(request):
             sistema = request.POST.get("sistema", "SAC").upper()
             cliente = request.POST.get("cliente", "").strip()
             observacoes = request.POST.get("observacoes", "").strip()
+            mip_mensal = float(request.POST.get("mip_mensal", 0) or 0)
+            dfi_mensal = float(request.POST.get("dfi_mensal", 0) or 0)
 
             if valor_entrada >= valor_imovel:
                 raise ValueError("A entrada não pode ser maior ou igual ao valor do imóvel.")
@@ -54,9 +56,9 @@ def simular(request):
             valor_financiado = valor_imovel - valor_entrada
 
             if sistema == "SAC":
-                parcelas = calcular_sac(valor_financiado, taxa_juros, prazo_meses)
+                parcelas = calcular_sac(valor_financiado, taxa_juros, prazo_meses, mip_mensal, dfi_mensal, valor_imovel)
             else:
-                parcelas = calcular_price(valor_financiado, taxa_juros, prazo_meses)
+                parcelas = calcular_price(valor_financiado, taxa_juros, prazo_meses, mip_mensal, dfi_mensal, valor_imovel)
 
             Simulation.objects.create(
                 usuario=request.user,
@@ -66,10 +68,14 @@ def simular(request):
                 taxa_juros=taxa_juros,
                 prazo_meses=prazo_meses,
                 sistema=sistema,
+                mip_mensal=mip_mensal,
+                dfi_mensal=dfi_mensal,
                 observacoes=observacoes,
             )
 
             total_pago = sum(float(p["valor"]) for p in parcelas) if parcelas else 0
+            total_juros = total_pago - valor_financiado
+            total_seguros = sum(float(p["seguro"]) for p in parcelas) if parcelas else 0
             primeira_parcela = parcelas[0]["valor"] if parcelas else "0.00"
             ultima_parcela = parcelas[-1]["valor"] if parcelas else "0.00"
 
@@ -91,6 +97,12 @@ def simular(request):
                 "primeira_parcela": primeira_parcela,
                 "ultima_parcela": ultima_parcela,
                 "total_pago": f"{total_pago:.2f}",
+                "total_juros": f"{total_juros:.2f}",
+                "total_seguros": f"{total_seguros:.2f}",
+                "custo_total": f"{valor_entrada + total_pago:.2f}",
+                "usar_seguro": mip_mensal > 0 or dfi_mensal > 0,
+                "mip_mensal": f"{mip_mensal:.4f}",
+                "dfi_mensal": f"{dfi_mensal:.4f}",
                 "parcelas": parcelas,
                 "cliente": cliente,
                 "chart_labels": json.dumps(chart_labels),
@@ -240,6 +252,8 @@ def editar_simulacao(request, pk):
             sim.taxa_juros = taxa_juros
             sim.prazo_meses = prazo_meses
             sim.sistema = sistema
+            sim.mip_mensal = float(request.POST.get('mip_mensal', 0) or 0)
+            sim.dfi_mensal = float(request.POST.get('dfi_mensal', 0) or 0)
             sim.observacoes = observacoes
             sim.save()
 
@@ -253,12 +267,24 @@ def editar_simulacao(request, pk):
 
 @login_required
 @require_POST
+def toggle_favorito(request, pk):
+    if request.user.is_staff:
+        sim = get_object_or_404(Simulation, pk=pk)
+    else:
+        sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
+    sim.favorito = not sim.favorito
+    sim.save(update_fields=['favorito'])
+    from django.http import JsonResponse
+    return JsonResponse({'favorito': sim.favorito})
+
+
+@login_required
+@require_POST
 def alterar_status(request, pk):
     if request.user.is_staff:
         sim = get_object_or_404(Simulation, pk=pk)
     else:
         sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
-
     novo_status = request.POST.get('status', '')
     status_validos = [s for s, _ in Simulation.STATUS_CHOICES]
     if novo_status in status_validos:
@@ -435,7 +461,8 @@ def gerar_link(request, pk):
 def simulacao_publica(request, token):
     sim = get_object_or_404(Simulation, share_token=token)
     fn = calcular_sac if sim.sistema == 'SAC' else calcular_price
-    parcelas = fn(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses)
+    parcelas = fn(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses,
+                  float(sim.mip_mensal), float(sim.dfi_mensal), float(sim.valor_imovel))
     total_pago = sum(float(p['valor']) for p in parcelas)
     total_juros = total_pago - float(sim.valor_financiado)
     return render(request, 'simulador/simulacao_publica.html', {
@@ -463,7 +490,8 @@ def exportar_pdf(request, pk):
         sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
 
     parcelas = (calcular_sac if sim.sistema == 'SAC' else calcular_price)(
-        float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses
+        float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses,
+        float(sim.mip_mensal), float(sim.dfi_mensal), float(sim.valor_imovel)
     )
 
     buffer = BytesIO()
@@ -562,8 +590,10 @@ def exportar_excel(request, pk):
     else:
         sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
 
-    parcelas_sac = calcular_sac(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses)
-    parcelas_price = calcular_price(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses)
+    parcelas_sac = calcular_sac(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses,
+                                float(sim.mip_mensal), float(sim.dfi_mensal), float(sim.valor_imovel))
+    parcelas_price = calcular_price(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses,
+                                    float(sim.mip_mensal), float(sim.dfi_mensal), float(sim.valor_imovel))
 
     wb = openpyxl.Workbook()
     azul = 'FF1A3C5E'
@@ -763,15 +793,18 @@ def detalhe_simulacao(request, pk):
         sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
 
     fn = calcular_sac if sim.sistema == 'SAC' else calcular_price
-    parcelas = fn(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses)
+    parcelas = fn(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses,
+                  float(sim.mip_mensal), float(sim.dfi_mensal), float(sim.valor_imovel))
     total_pago = sum(float(p['valor']) for p in parcelas)
     total_juros = total_pago - float(sim.valor_financiado)
+    total_seguros = sum(float(p['seguro']) for p in parcelas)
 
     return render(request, 'simulador/detalhe.html', {
         'sim': sim,
         'parcelas': parcelas,
         'total_pago': total_pago,
         'total_juros': total_juros,
+        'total_seguros': total_seguros,
         'primeira_parcela': parcelas[0]['valor'] if parcelas else '0.00',
         'ultima_parcela': parcelas[-1]['valor'] if parcelas else '0.00',
     })

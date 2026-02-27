@@ -12,6 +12,7 @@ urlpatterns = [
     path('historico/<int:pk>/editar/', views.editar_simulacao, name='editar_simulacao'),
     path('historico/<int:pk>/excluir/', views.excluir_simulacao, name='excluir_simulacao'),
     path('historico/<int:pk>/status/', views.alterar_status, name='alterar_status'),
+    path('historico/<int:pk>/favorito/', views.toggle_favorito, name='toggle_favorito'),
     path('historico/<int:pk>/pdf/', views.exportar_pdf, name='exportar_pdf'),
     path('historico/<int:pk>/excel/', views.exportar_excel, name='exportar_excel'),
     path('historico/<int:pk>/link/', views.gerar_link, name='gerar_link'),

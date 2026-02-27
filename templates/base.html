@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+    <script>if(localStorage.getItem('theme')==='dark')document.documentElement.setAttribute('data-bs-theme','dark');</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Imobiliária{% endblock %}</title>
@@ -86,6 +87,68 @@
             .sidebar { width: 100%; min-height: auto; position: relative; }
             .main-content { margin-left: 0; }
         }
+
+        /* ── Dark Mode overrides ── */
+        [data-bs-theme="dark"] body { background-color: #0f172a; }
+        [data-bs-theme="dark"] .top-bar {
+            background: #1e293b;
+            border-bottom-color: #334155;
+        }
+        [data-bs-theme="dark"] .page-title { color: #93c5fd; }
+        [data-bs-theme="dark"] footer {
+            background-color: #1e293b !important;
+            border-top-color: #334155 !important;
+            color: #94a3b8 !important;
+        }
+        [data-bs-theme="dark"] .card {
+            box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+        }
+        /* table hover */
+        [data-bs-theme="dark"] .table tbody tr:hover {
+            background-color: rgba(59,130,246,0.12) !important;
+        }
+        /* form labels */
+        [data-bs-theme="dark"] .form-label { color: #93c5fd; }
+        /* comparativo kpi rows */
+        [data-bs-theme="dark"] .kpi-item { background: #1e293b; }
+        [data-bs-theme="dark"] .kpi-item:nth-child(even) { background: #243447; }
+        [data-bs-theme="dark"] .kpi-item .kpi-val { color: #e2e8f0; }
+        /* highlight boxes */
+        [data-bs-theme="dark"] .destaque-box {
+            background: #1e293b;
+            border-left-color: #3b82f6;
+            color: #bfdbfe;
+        }
+        [data-bs-theme="dark"] .interpretacao-box {
+            background: #1e293b;
+            border-left-color: #3b82f6;
+            color: #bfdbfe;
+        }
+        /* empty states */
+        [data-bs-theme="dark"] .empty-state {
+            border-color: #334155 !important;
+            background: #1e293b !important;
+        }
+        /* detail page */
+        [data-bs-theme="dark"] .info-grid dd { color: #93c5fd; }
+        /* sidebar stays dark — no change needed */
+
+        /* ── Print mode ── */
+        @media print {
+            .sidebar, .top-bar, footer, .toast-container,
+            .btn, form[method="post"] button, #btnVerTodas,
+            [data-bs-toggle="modal"], .pagination { display: none !important; }
+            .main-content { margin-left: 0 !important; }
+            .content-area { padding: 0 !important; }
+            .card { box-shadow: none !important; border: 1px solid #dee2e6 !important; }
+            .card-header {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            /* Mostrar todas as parcelas na impressão */
+            #parcelasExtras { display: table-row-group !important; }
+            body { background: white !important; }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -141,7 +204,13 @@
     <div class="main-content">
         <div class="top-bar">
             <span class="page-title">{% block page_title %}{% endblock %}</span>
-            <small class="text-muted">{{ request.user.username }}</small>
+            <div class="d-flex align-items-center gap-3">
+                <button id="btnTheme" class="btn btn-sm btn-outline-secondary rounded-circle"
+                        style="width:34px;height:34px;padding:0;" title="Alternar tema claro/escuro">
+                    <i class="bi bi-moon-fill"></i>
+                </button>
+                <small class="text-muted">{{ request.user.username }}</small>
+            </div>
         </div>
 
         <div class="content-area">
@@ -186,6 +255,20 @@
     <script>
         // Inicializa e exibe todos os toasts na página
         document.querySelectorAll('.toast').forEach(el => new bootstrap.Toast(el).show());
+
+        // Dark mode toggle
+        const _btnTheme = document.getElementById('btnTheme');
+        function _applyThemeIcon() {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            _btnTheme.querySelector('i').className = isDark ? 'bi bi-sun-fill' : 'bi bi-moon-fill';
+        }
+        _applyThemeIcon();
+        _btnTheme.addEventListener('click', function () {
+            const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+            document.documentElement.setAttribute('data-bs-theme', isDark ? 'light' : 'dark');
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+            _applyThemeIcon();
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

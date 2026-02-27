@@ -190,6 +190,14 @@
                         <td class="small text-muted text-nowrap">{{ sim.criado_em|date:"d/m/Y H:i" }}</td>
                         <td>
                             <div class="d-flex gap-1 justify-content-center">
+                                <button
+                                    type="button"
+                                    class="btn btn-excluir {% if sim.favorito %}btn-warning{% else %}btn-outline-secondary{% endif %} btn-favorito"
+                                    data-pk="{{ sim.pk }}"
+                                    data-favorito="{{ sim.favorito|yesno:'true,false' }}"
+                                    title="{% if sim.favorito %}Remover dos favoritos{% else %}Adicionar aos favoritos{% endif %}">
+                                    <i class="bi {% if sim.favorito %}bi-star-fill{% else %}bi-star{% endif %}"></i>
+                                </button>
                                 <a href="{% url 'simulador:exportar_pdf' sim.pk %}"
                                    class="btn btn-outline-danger btn-excluir" title="Baixar PDF">
                                     <i class="bi bi-file-earmark-pdf"></i>
@@ -311,6 +319,33 @@
     document.querySelectorAll('.status-select').forEach(function(sel) {
         sel.addEventListener('change', function() {
             sel.className = 'status-select status-' + sel.value;
+        });
+    });
+
+    // Toggle favorito (AJAX)
+    document.querySelectorAll('.btn-favorito').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            const pk = this.getAttribute('data-pk');
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            fetch(`/historico/${pk}/favorito/`, {
+                method: 'POST',
+                headers: {'X-CSRFToken': csrfToken, 'Content-Type': 'application/json'},
+            })
+            .then(r => r.json())
+            .then(data => {
+                const icon = this.querySelector('i');
+                if (data.favorito) {
+                    this.classList.remove('btn-outline-secondary');
+                    this.classList.add('btn-warning');
+                    icon.className = 'bi bi-star-fill';
+                    this.title = 'Remover dos favoritos';
+                } else {
+                    this.classList.remove('btn-warning');
+                    this.classList.add('btn-outline-secondary');
+                    icon.className = 'bi bi-star';
+                    this.title = 'Adicionar aos favoritos';
+                }
+            });
         });
     });
 </script>

@@ -108,3 +108,4 @@ imobiliaria-django/
 
 - **Administrador** (`is_staff=True`): acesso completo, vê todas as simulações e gerencia usuários
 - **Corretor**: acessa apenas suas próprias simulações
+
