@@ -13,6 +13,7 @@ from functools import wraps
 from io import BytesIO
 import json
 import datetime
+import uuid
 
 
 def staff_required(view_func):
@@ -72,6 +73,14 @@ def simular(request):
             primeira_parcela = parcelas[0]["valor"] if parcelas else "0.00"
             ultima_parcela = parcelas[-1]["valor"] if parcelas else "0.00"
 
+            # Dados para o gráfico de evolução do saldo devedor
+            passo = max(1, prazo_meses // 60)
+            indices = list(range(0, prazo_meses, passo))
+            if parcelas and (prazo_meses - 1) not in indices:
+                indices.append(prazo_meses - 1)
+            chart_labels = [parcelas[i]['numero'] for i in indices]
+            chart_saldo = [float(parcelas[i]['saldo_devedor']) for i in indices]
+
             resultado = {
                 "sistema": sistema,
                 "valor_imovel": f"{valor_imovel:.2f}",
@@ -84,6 +93,8 @@ def simular(request):
                 "total_pago": f"{total_pago:.2f}",
                 "parcelas": parcelas,
                 "cliente": cliente,
+                "chart_labels": json.dumps(chart_labels),
+                "chart_saldo": json.dumps(chart_saldo),
             }
 
         except (ValueError, TypeError) as e:
@@ -145,6 +156,8 @@ def historico(request):
     busca = request.GET.get('busca', '').strip()
     filtro_status = request.GET.get('status', '')
     filtro_sistema = request.GET.get('sistema', '')
+    data_inicio = request.GET.get('data_inicio', '').strip()
+    data_fim = request.GET.get('data_fim', '').strip()
 
     if busca:
         qs = qs.filter(cliente__icontains=busca)
@@ -152,6 +165,16 @@ def historico(request):
         qs = qs.filter(status=filtro_status)
     if filtro_sistema:
         qs = qs.filter(sistema=filtro_sistema)
+    if data_inicio:
+        try:
+            qs = qs.filter(criado_em__date__gte=datetime.date.fromisoformat(data_inicio))
+        except ValueError:
+            pass
+    if data_fim:
+        try:
+            qs = qs.filter(criado_em__date__lte=datetime.date.fromisoformat(data_fim))
+        except ValueError:
+            pass
 
     # Paginação
     paginator = Paginator(qs, 10)
@@ -163,6 +186,8 @@ def historico(request):
         'busca': busca,
         'filtro_status': filtro_status,
         'filtro_sistema': filtro_sistema,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
         'status_choices': Simulation.STATUS_CHOICES,
         'sistema_choices': Simulation.SISTEMA_CHOICES,
         'total_filtrado': qs.count(),
@@ -182,6 +207,48 @@ def excluir_simulacao(request, pk):
     sim.delete()
     messages.success(request, f'Simulação de "{cliente}" excluída com sucesso.')
     return redirect('simulador:historico')
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def editar_simulacao(request, pk):
+    if request.user.is_staff:
+        sim = get_object_or_404(Simulation, pk=pk)
+    else:
+        sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
+
+    if request.method == 'POST':
+        try:
+            valor_imovel = float(request.POST.get('valor_imovel', 0))
+            valor_entrada = float(request.POST.get('entrada', 0))
+            taxa_juros = float(request.POST.get('taxa_juros', 0))
+            prazo_meses = int(request.POST.get('meses', 0))
+            sistema = request.POST.get('sistema', 'SAC').upper()
+            cliente = request.POST.get('cliente', '').strip()
+            observacoes = request.POST.get('observacoes', '').strip()
+
+            if valor_entrada >= valor_imovel:
+                raise ValueError("A entrada não pode ser maior ou igual ao valor do imóvel.")
+            if taxa_juros <= 0 or prazo_meses <= 0:
+                raise ValueError("Taxa de juros e prazo devem ser maiores que zero.")
+            if not cliente:
+                raise ValueError("O nome do cliente é obrigatório.")
+
+            sim.cliente = cliente
+            sim.valor_imovel = valor_imovel
+            sim.entrada = valor_entrada
+            sim.taxa_juros = taxa_juros
+            sim.prazo_meses = prazo_meses
+            sim.sistema = sistema
+            sim.observacoes = observacoes
+            sim.save()
+
+            messages.success(request, 'Simulação atualizada com sucesso.')
+            return redirect('simulador:detalhe_simulacao', pk=sim.pk)
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro nos dados informados: {e}')
+
+    return render(request, 'simulador/editar_simulacao.html', {'sim': sim})
 
 
 @login_required
@@ -226,6 +293,9 @@ def oraculo(request):
             valor_financiavel = margem_parcela * ((1 - (1 + taxa_mensal) ** (-meses)) / taxa_mensal)
             poder_compra = valor_financiavel + entrada
 
+            def _brl(n):
+                return f'{n:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
+
             resultado = {
                 'poder_compra': f'{poder_compra:,.2f}',
                 'valor_financiavel': f'{valor_financiavel:,.2f}',
@@ -236,10 +306,10 @@ def oraculo(request):
                 'taxa_anual': taxa_anual,
                 'comprometimento': comprometimento,
                 'interpretacao': (
-                    f'Com renda de R$ {renda:,.2f}, o banco libera uma parcela de até '
-                    f'R$ {margem_parcela:,.2f} ({comprometimento:.0f}% da renda). '
-                    f'Isso financia até R$ {valor_financiavel:,.2f} em {prazo_anos} anos, '
-                    f'dando um poder de compra de R$ {poder_compra:,.2f}.'
+                    f'Com renda de R$ {_brl(renda)}, o banco libera uma parcela de até '
+                    f'R$ {_brl(margem_parcela)} ({comprometimento:.0f}% da renda). '
+                    f'Isso financia até R$ {_brl(valor_financiavel)} em {prazo_anos} anos, '
+                    f'dando um poder de compra de R$ {_brl(poder_compra)}.'
                 ),
             }
         except (ValueError, TypeError) as e:
@@ -342,6 +412,39 @@ def perfil(request):
             'last_name': request.user.last_name,
             'email': request.user.email,
         }
+    })
+
+
+@login_required
+@require_POST
+def gerar_link(request, pk):
+    if request.user.is_staff:
+        sim = get_object_or_404(Simulation, pk=pk)
+    else:
+        sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
+
+    if not sim.share_token:
+        sim.share_token = uuid.uuid4()
+        sim.save(update_fields=['share_token'])
+
+    link = request.build_absolute_uri(f'/s/{sim.share_token}/')
+    from django.http import JsonResponse
+    return JsonResponse({'link': link})
+
+
+def simulacao_publica(request, token):
+    sim = get_object_or_404(Simulation, share_token=token)
+    fn = calcular_sac if sim.sistema == 'SAC' else calcular_price
+    parcelas = fn(float(sim.valor_financiado), float(sim.taxa_juros), sim.prazo_meses)
+    total_pago = sum(float(p['valor']) for p in parcelas)
+    total_juros = total_pago - float(sim.valor_financiado)
+    return render(request, 'simulador/simulacao_publica.html', {
+        'sim': sim,
+        'parcelas': parcelas,
+        'total_pago': total_pago,
+        'total_juros': total_juros,
+        'primeira_parcela': parcelas[0]['valor'] if parcelas else '0.00',
+        'ultima_parcela': parcelas[-1]['valor'] if parcelas else '0.00',
     })
 
 
@@ -562,6 +665,8 @@ def exportar_historico(request):
     busca = request.GET.get('busca', '').strip()
     filtro_status = request.GET.get('status', '')
     filtro_sistema = request.GET.get('sistema', '')
+    data_inicio = request.GET.get('data_inicio', '').strip()
+    data_fim = request.GET.get('data_fim', '').strip()
 
     if busca:
         qs = qs.filter(cliente__icontains=busca)
@@ -569,6 +674,16 @@ def exportar_historico(request):
         qs = qs.filter(status=filtro_status)
     if filtro_sistema:
         qs = qs.filter(sistema=filtro_sistema)
+    if data_inicio:
+        try:
+            qs = qs.filter(criado_em__date__gte=datetime.date.fromisoformat(data_inicio))
+        except ValueError:
+            pass
+    if data_fim:
+        try:
+            qs = qs.filter(criado_em__date__lte=datetime.date.fromisoformat(data_fim))
+        except ValueError:
+            pass
 
     wb = openpyxl.Workbook()
     ws = wb.active

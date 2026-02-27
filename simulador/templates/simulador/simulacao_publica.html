@@ -1,0 +1,154 @@
+{% load simulador_extras %}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulação — {{ sim.cliente }} | Imobiliária</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body { background: #f0f4f8; font-family: 'Segoe UI', sans-serif; }
+        .header-bar {
+            background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+            color: white;
+            padding: 18px 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+            color: white; border-radius: 16px;
+            padding: 28px; margin-bottom: 24px;
+            box-shadow: 0 8px 30px rgba(26,60,94,0.2);
+        }
+        .kpi-box { background: rgba(255,255,255,0.15); border-radius: 10px; padding: 14px; text-align: center; }
+        .kpi-box .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
+        .kpi-box .value { font-size: 1.1rem; font-weight: 700; margin-top: 3px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+        .card-header { background: linear-gradient(135deg,#1a3c5e,#2e86c1); color: white; font-weight: 600; border-radius: 12px 12px 0 0 !important; }
+        .table thead th { background-color: #1a3c5e; color: white; font-weight: 500; text-align: center; }
+        .table tbody td { text-align: center; vertical-align: middle; }
+        .table tbody tr:hover { background-color: #eaf2fb; }
+        .badge-sac   { background-color: #3b82f6; }
+        .badge-price { background-color: #8b5cf6; }
+        .badge-novo       { background-color: #6c757d; }
+        .badge-em_analise { background-color: #f59e0b; }
+        .badge-aprovado   { background-color: #10b981; }
+        .badge-reprovado  { background-color: #ef4444; }
+        .nota-rodape { font-size: 0.78rem; color: #94a3b8; }
+    </style>
+</head>
+<body>
+
+<div class="header-bar">
+    <div>
+        <i class="bi bi-house-door-fill me-2 fs-5"></i>
+        <strong>Imobiliária</strong>
+        <small class="ms-2 opacity-75">— Simulação de Financiamento</small>
+    </div>
+    <small class="opacity-75"><i class="bi bi-share me-1"></i>Link compartilhado</small>
+</div>
+
+<div class="container py-4" style="max-width: 960px;">
+
+    <!-- Sumário -->
+    <div class="summary-card">
+        <div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+            <div>
+                <h5 class="fw-bold mb-1">{{ sim.cliente }}</h5>
+                <small class="opacity-75">Simulado em {{ sim.criado_em|date:"d/m/Y" }}</small>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge badge-{{ sim.sistema|lower }} fs-6">{{ sim.sistema }}</span>
+                <span class="badge badge-{{ sim.status }} fs-6">{{ sim.get_status_display }}</span>
+            </div>
+        </div>
+        <div class="row g-3">
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Valor do Imóvel</div>
+                <div class="value">R$ {{ sim.valor_imovel|brl }}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Entrada</div>
+                <div class="value">R$ {{ sim.entrada|brl }}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Valor Financiado</div>
+                <div class="value">R$ {{ sim.valor_financiado|brl }}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Taxa Mensal</div>
+                <div class="value">{{ sim.taxa_juros }}%</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Prazo</div>
+                <div class="value">{{ sim.prazo_meses }} meses</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">1ª Parcela</div>
+                <div class="value">R$ {{ primeira_parcela|brl }}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Última Parcela</div>
+                <div class="value">R$ {{ ultima_parcela|brl }}</div>
+            </div></div>
+            <div class="col-6 col-md-3"><div class="kpi-box">
+                <div class="label">Total Pago</div>
+                <div class="value">R$ {{ total_pago|brl }}</div>
+            </div></div>
+        </div>
+    </div>
+
+    {% if sim.observacoes %}
+    <div class="card mb-4">
+        <div class="card-header py-3"><i class="bi bi-sticky me-2"></i>Anotações do Corretor</div>
+        <div class="card-body p-4">
+            <p class="mb-0" style="white-space: pre-wrap; color: #1a3c5e;">{{ sim.observacoes }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Tabela -->
+    <div class="card mb-4">
+        <div class="card-header py-3">
+            <i class="bi bi-table me-2"></i>
+            Tabela de Parcelas — {{ sim.prazo_meses }} parcela{{ sim.prazo_meses|pluralize:",s" }}
+            &nbsp;<span class="badge bg-white text-dark fw-semibold small">Juros: R$ {{ total_juros|brl }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height:520px; overflow-y:auto;">
+                <table class="table table-hover table-striped mb-0">
+                    <thead style="position:sticky;top:0;z-index:1;">
+                        <tr>
+                            <th>#</th><th>Parcela (R$)</th><th>Amortização (R$)</th>
+                            <th>Juros (R$)</th><th>Saldo Devedor (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in parcelas %}
+                        <tr>
+                            <td><span class="badge bg-secondary">{{ p.numero }}</span></td>
+                            <td class="fw-semibold text-primary">{{ p.valor|brl }}</td>
+                            <td>{{ p.amortizacao|brl }}</td>
+                            <td class="text-danger">{{ p.juros|brl }}</td>
+                            <td>{{ p.saldo_devedor|brl }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <p class="nota-rodape text-center">
+        <i class="bi bi-info-circle me-1"></i>
+        Todos os valores são estimativas. Consulte seu corretor para condições reais de financiamento.
+    </p>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

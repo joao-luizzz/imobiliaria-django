@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Editar Simulação #{{ sim.pk }} — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-pencil-square me-2"></i>Editar Simulação #{{ sim.pk }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .form-control:focus, .form-check-input:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mb-4">
+    <div class="col-12 col-lg-8">
+
+        <div class="mb-3">
+            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Voltar ao Detalhe
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-pencil-square me-2"></i>Editar dados da simulação — {{ sim.cliente }}
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-person me-1"></i>Nome do Cliente</label>
+                            <input type="text" name="cliente" class="form-control"
+                                   value="{{ sim.cliente }}" maxlength="150" required autofocus>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-building me-1"></i>Valor do Imóvel (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="valor_imovel" class="form-control"
+                                       value="{{ sim.valor_imovel }}" min="0" step="0.01" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-cash-coin me-1"></i>Entrada (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="entrada" class="form-control"
+                                       value="{{ sim.entrada }}" min="0" step="0.01" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-percent me-1"></i>Taxa de Juros Mensal (%)</label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_juros" class="form-control"
+                                       value="{{ sim.taxa_juros }}" min="0.01" step="0.01" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Prazo (meses)</label>
+                            <div class="input-group">
+                                <input type="number" name="meses" class="form-control"
+                                       value="{{ sim.prazo_meses }}" min="1" step="1" required>
+                                <span class="input-group-text">meses</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label d-block"><i class="bi bi-toggles me-1"></i>Sistema de Amortização</label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="sistema_sac" value="SAC"
+                                        {% if sim.sistema == 'SAC' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-primary" for="sistema_sac">
+                                        <i class="bi bi-graph-down-arrow me-1"></i>SAC
+                                        <small class="text-muted fw-normal d-block">Parcelas decrescentes</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="sistema_price" value="PRICE"
+                                        {% if sim.sistema == 'PRICE' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-success" for="sistema_price">
+                                        <i class="bi bi-bar-chart-line me-1"></i>PRICE
+                                        <small class="text-muted fw-normal d-block">Parcelas fixas</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-sticky me-1"></i>Anotações <small class="text-muted fw-normal">(opcional)</small></label>
+                            <textarea name="observacoes" class="form-control" rows="3"
+                                      placeholder="Observações sobre o cliente ou a negociação…">{{ sim.observacoes }}</textarea>
+                        </div>
+
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="btn btn-outline-secondary">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4"
+                                style="background:linear-gradient(135deg,#1a3c5e,#2e86c1); border:none;">
+                                <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

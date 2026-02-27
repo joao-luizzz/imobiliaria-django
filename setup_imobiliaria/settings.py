@@ -81,6 +81,10 @@ LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'simulador:simular'
 LOGOUT_REDIRECT_URL = 'login'
 
+# Mapeia tag 'error' do Django para 'danger' do Bootstrap
+from django.contrib.messages import constants as message_constants
+MESSAGE_TAGS = {message_constants.ERROR: 'danger'}
+
 # Logging
 LOGGING = {
     'version': 1,

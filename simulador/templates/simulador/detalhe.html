@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load simulador_extras %}
 
 {% block title %}Simulação #{{ sim.pk }} — {{ sim.cliente }}{% endblock %}
 {% block page_title %}<i class="bi bi-file-text-fill me-2"></i>Simulação #{{ sim.pk }} — {{ sim.cliente }}{% endblock %}
@@ -42,7 +43,16 @@
     <a href="{% url 'simulador:historico' %}" class="btn btn-sm btn-outline-secondary">
         <i class="bi bi-arrow-left me-1"></i>Voltar ao Histórico
     </a>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{% url 'simulador:editar_simulacao' sim.pk %}"
+           class="btn btn-sm btn-outline-primary rounded-pill">
+            <i class="bi bi-pencil me-1"></i>Editar
+        </a>
+        <button type="button" id="btnCompartilhar"
+                class="btn btn-sm btn-outline-secondary rounded-pill"
+                title="Gerar link compartilhável">
+            <i class="bi bi-share me-1"></i>Compartilhar
+        </button>
         <a href="{% url 'simulador:exportar_pdf' sim.pk %}"
            class="btn btn-sm btn-outline-danger rounded-pill">
             <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
@@ -73,19 +83,19 @@
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">Valor do Imóvel</div>
-                <div class="value">R$ {{ sim.valor_imovel|floatformat:2 }}</div>
+                <div class="value">R$ {{ sim.valor_imovel|brl }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">Entrada</div>
-                <div class="value">R$ {{ sim.entrada|floatformat:2 }}</div>
+                <div class="value">R$ {{ sim.entrada|brl }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">Valor Financiado</div>
-                <div class="value">R$ {{ sim.valor_financiado|floatformat:2 }}</div>
+                <div class="value">R$ {{ sim.valor_financiado|brl }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
@@ -103,19 +113,19 @@
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">1ª Parcela</div>
-                <div class="value">R$ {{ primeira_parcela }}</div>
+                <div class="value">R$ {{ primeira_parcela|brl }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">Última Parcela</div>
-                <div class="value">R$ {{ ultima_parcela }}</div>
+                <div class="value">R$ {{ ultima_parcela|brl }}</div>
             </div>
         </div>
         <div class="col-6 col-md-3">
             <div class="kpi-box">
                 <div class="label">Total Pago</div>
-                <div class="value">R$ {{ total_pago|floatformat:2 }}</div>
+                <div class="value">R$ {{ total_pago|brl }}</div>
             </div>
         </div>
     </div>
@@ -140,7 +150,7 @@
         Tabela Completa de Parcelas —
         {{ sim.prazo_meses }} parcela{{ sim.prazo_meses|pluralize:",s" }}
         &nbsp;<span class="badge bg-white text-dark fw-semibold small">
-            Juros: R$ {{ total_juros|floatformat:2 }}
+            Juros: R$ {{ total_juros|brl }}
         </span>
     </div>
     <div class="card-body p-0">
@@ -159,10 +169,10 @@
                     {% for p in parcelas %}
                     <tr>
                         <td><span class="badge bg-secondary">{{ p.numero }}</span></td>
-                        <td class="fw-semibold text-primary">{{ p.valor }}</td>
-                        <td>{{ p.amortizacao }}</td>
-                        <td class="text-danger">{{ p.juros }}</td>
-                        <td>{{ p.saldo_devedor }}</td>
+                        <td class="fw-semibold text-primary">{{ p.valor|brl }}</td>
+                        <td>{{ p.amortizacao|brl }}</td>
+                        <td class="text-danger">{{ p.juros|brl }}</td>
+                        <td>{{ p.saldo_devedor|brl }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -171,4 +181,29 @@
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('btnCompartilhar').addEventListener('click', function () {
+    const btn = this;
+    fetch("{% url 'simulador:gerar_link' sim.pk %}", {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    })
+    .then(r => r.json())
+    .then(data => {
+        navigator.clipboard.writeText(data.link).then(() => {
+            const original = btn.innerHTML;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Link copiado!';
+            btn.classList.replace('btn-outline-secondary', 'btn-success');
+            setTimeout(() => {
+                btn.innerHTML = original;
+                btn.classList.replace('btn-success', 'btn-outline-secondary');
+            }, 3000);
+        });
+    })
+    .catch(() => alert('Erro ao gerar o link.'));
+});
+</script>
 {% endblock %}

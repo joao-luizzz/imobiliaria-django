@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load simulador_extras %}
 
 {% block title %}Oráculo — Imobiliária{% endblock %}
 {% block page_title %}<i class="bi bi-magic me-2"></i>Oráculo — Capacidade de Compra{% endblock %}
@@ -148,24 +149,24 @@
         {% if resultado %}
         <div class="poder-compra-card">
             <div class="label">Poder de Compra — Imóvel Máximo</div>
-            <div class="valor">R$ {{ resultado.poder_compra }}</div>
+            <div class="valor">R$ {{ resultado.poder_compra|brl }}</div>
             <div class="row g-2 mt-1">
                 <div class="col-4">
                     <div class="kpi-mini">
                         <div class="mini-label">Financiamento Teto</div>
-                        <div class="mini-valor">R$ {{ resultado.valor_financiavel }}</div>
+                        <div class="mini-valor">R$ {{ resultado.valor_financiavel|brl }}</div>
                     </div>
                 </div>
                 <div class="col-4">
                     <div class="kpi-mini">
                         <div class="mini-label">Parcela Máxima</div>
-                        <div class="mini-valor">R$ {{ resultado.margem_parcela }}</div>
+                        <div class="mini-valor">R$ {{ resultado.margem_parcela|brl }}</div>
                     </div>
                 </div>
                 <div class="col-4">
                     <div class="kpi-mini">
                         <div class="mini-label">Entrada</div>
-                        <div class="mini-valor">R$ {{ resultado.entrada }}</div>
+                        <div class="mini-valor">R$ {{ resultado.entrada|brl }}</div>
                     </div>
                 </div>
             </div>

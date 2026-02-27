@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+import uuid
 
 
 class Simulation(models.Model):
@@ -24,6 +25,7 @@ class Simulation(models.Model):
     sistema = models.CharField(max_length=10, choices=SISTEMA_CHOICES, default='SAC')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='novo')
     observacoes = models.TextField(blank=True, default='')
+    share_token = models.UUIDField(null=True, blank=True, default=None, unique=True)
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load simulador_extras %}
 
 {% block title %}Comparativo SAC x PRICE — Imobiliária{% endblock %}
 {% block page_title %}<i class="bi bi-bar-chart-steps me-2"></i>Comparativo SAC × PRICE{% endblock %}
@@ -93,7 +94,12 @@
                                     placeholder="ex: 0.75" min="0.01" step="0.01"
                                     value="{{ request.POST.taxa_juros|default:'' }}" required>
                                 <span class="input-group-text">%</span>
+                                <button type="button" id="btnSelic" class="btn btn-outline-secondary btn-sm"
+                                        title="Preencher com taxa SELIC mensal atual">
+                                    <i class="bi bi-bank me-1"></i>SELIC
+                                </button>
                             </div>
+                            <div id="selicInfo" class="form-text text-muted" style="display:none;"></div>
                         </div>
 
                         <div class="col-12">
@@ -132,19 +138,19 @@
                 <div class="kpi-row">
                     <div class="kpi-item">
                         <span class="kpi-label">1ª Parcela</span>
-                        <span class="kpi-val loser">R$ {{ resultado.sac.primeira }}</span>
+                        <span class="kpi-val loser">R$ {{ resultado.sac.primeira|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Última Parcela</span>
-                        <span class="kpi-val winner">R$ {{ resultado.sac.ultima }}</span>
+                        <span class="kpi-val winner">R$ {{ resultado.sac.ultima|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Total Pago</span>
-                        <span class="kpi-val winner">R$ {{ resultado.sac.total_pago }}</span>
+                        <span class="kpi-val winner">R$ {{ resultado.sac.total_pago|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Total em Juros</span>
-                        <span class="kpi-val winner">R$ {{ resultado.sac.total_juros }}</span>
+                        <span class="kpi-val winner">R$ {{ resultado.sac.total_juros|brl }}</span>
                     </div>
                 </div>
             </div>
@@ -156,19 +162,19 @@
                 <div class="kpi-row">
                     <div class="kpi-item">
                         <span class="kpi-label">1ª Parcela</span>
-                        <span class="kpi-val winner">R$ {{ resultado.price.primeira }}</span>
+                        <span class="kpi-val winner">R$ {{ resultado.price.primeira|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Última Parcela</span>
-                        <span class="kpi-val">R$ {{ resultado.price.ultima }}</span>
+                        <span class="kpi-val">R$ {{ resultado.price.ultima|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Total Pago</span>
-                        <span class="kpi-val loser">R$ {{ resultado.price.total_pago }}</span>
+                        <span class="kpi-val loser">R$ {{ resultado.price.total_pago|brl }}</span>
                     </div>
                     <div class="kpi-item">
                         <span class="kpi-label">Total em Juros</span>
-                        <span class="kpi-val loser">R$ {{ resultado.price.total_juros }}</span>
+                        <span class="kpi-val loser">R$ {{ resultado.price.total_juros|brl }}</span>
                     </div>
                 </div>
             </div>
@@ -260,4 +266,27 @@ new Chart(document.getElementById('comparativoChart'), {
 });
 </script>
 {% endif %}
+<script>
+// Botão SELIC — busca taxa anual no BCB e converte para mensal equivalente
+document.getElementById('btnSelic').addEventListener('click', function () {
+    const btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.4390/dados/ultimos/1?formato=json')
+        .then(r => r.json())
+        .then(data => {
+            const anual = parseFloat(data[0].valor);
+            const mensal = ((Math.pow(1 + anual / 100, 1 / 12) - 1) * 100).toFixed(4);
+            document.querySelector('[name="taxa_juros"]').value = mensal;
+            const info = document.getElementById('selicInfo');
+            info.textContent = `SELIC ${data[0].data}: ${anual}% a.a. → ${mensal}% a.m.`;
+            info.style.display = 'block';
+        })
+        .catch(() => alert('Não foi possível consultar a SELIC. Tente novamente.'))
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-bank me-1"></i>SELIC';
+        });
+});
+</script>
 {% endblock %}

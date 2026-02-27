@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load simulador_extras %}
 
 {% block title %}Histórico — Imobiliária{% endblock %}
 {% block page_title %}<i class="bi bi-clock-history me-2"></i>Histórico de Simulações{% endblock %}
@@ -72,7 +73,7 @@
                     value="{{ busca }}"
                 >
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold text-muted mb-1">
                     <i class="bi bi-flag me-1"></i>Status
                 </label>
@@ -83,7 +84,7 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-6 col-md-3">
+            <div class="col-6 col-md-2">
                 <label class="form-label small fw-semibold text-muted mb-1">
                     <i class="bi bi-toggles me-1"></i>Sistema
                 </label>
@@ -93,6 +94,20 @@
                         <option value="{{ val }}" {% if filtro_sistema == val %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                    <i class="bi bi-calendar-event me-1"></i>De
+                </label>
+                <input type="date" name="data_inicio" class="form-control form-control-sm"
+                       value="{{ data_inicio }}">
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                    <i class="bi bi-calendar-check me-1"></i>Até
+                </label>
+                <input type="date" name="data_fim" class="form-control form-control-sm"
+                       value="{{ data_fim }}">
             </div>
             <div class="col-12 col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-sm btn-primary flex-fill">
@@ -113,7 +128,7 @@
         <span><i class="bi bi-table me-2"></i>Simulações</span>
         <div class="d-flex align-items-center gap-2">
             <span class="badge bg-white text-dark fw-semibold">{{ total_filtrado }} registro{{ total_filtrado|pluralize:",s" }}</span>
-            <a href="{% url 'simulador:exportar_historico' %}?busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}"
+            <a href="{% url 'simulador:exportar_historico' %}?busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}&data_inicio={{ data_inicio }}&data_fim={{ data_fim }}"
                class="btn btn-sm btn-light rounded-pill"
                title="Exportar resultado atual em Excel">
                 <i class="bi bi-file-earmark-excel text-success me-1"></i>Exportar
@@ -152,8 +167,8 @@
                                 {{ sim.cliente }}
                             </a>
                         </td>
-                        <td>R$ {{ sim.valor_imovel|floatformat:2 }}</td>
-                        <td>R$ {{ sim.entrada|floatformat:2 }}</td>
+                        <td>R$ {{ sim.valor_imovel|brl }}</td>
+                        <td>R$ {{ sim.entrada|brl }}</td>
                         <td>{{ sim.taxa_juros }}%</td>
                         <td>{{ sim.prazo_meses }}m</td>
                         <td>
@@ -210,7 +225,7 @@
             <ul class="pagination pagination-sm justify-content-center mb-0">
                 {% if simulacoes.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ simulacoes.previous_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">
+                        <a class="page-link" href="?page={{ simulacoes.previous_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}&data_inicio={{ data_inicio }}&data_fim={{ data_fim }}">
                             <i class="bi bi-chevron-left"></i>
                         </a>
                     </li>
@@ -218,13 +233,13 @@
 
                 {% for num in simulacoes.paginator.page_range %}
                     <li class="page-item {% if simulacoes.number == num %}active{% endif %}">
-                        <a class="page-link" href="?page={{ num }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">{{ num }}</a>
+                        <a class="page-link" href="?page={{ num }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}&data_inicio={{ data_inicio }}&data_fim={{ data_fim }}">{{ num }}</a>
                     </li>
                 {% endfor %}
 
                 {% if simulacoes.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ simulacoes.next_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">
+                        <a class="page-link" href="?page={{ simulacoes.next_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}&data_inicio={{ data_inicio }}&data_fim={{ data_fim }}">
                             <i class="bi bi-chevron-right"></i>
                         </a>
                     </li>
@@ -239,7 +254,7 @@
         <i class="bi bi-inbox"></i>
         <p class="fw-semibold mb-1">Nenhuma simulação encontrada.</p>
         <small>
-            {% if busca or filtro_status or filtro_sistema %}
+            {% if busca or filtro_status or filtro_sistema or data_inicio or data_fim %}
                 Tente remover os filtros aplicados.
             {% else %}
                 As simulações feitas aparecerão aqui automaticamente.
