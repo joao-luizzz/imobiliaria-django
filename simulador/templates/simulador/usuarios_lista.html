@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block title %}Usuários — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-people-fill me-2"></i>Gestão de Usuários{% endblock %}
+
+{% block extra_css %}
+<style>
+    .avatar {
+        width: 36px; height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 0.85rem;
+        flex-shrink: 0;
+    }
+    .table thead th {
+        background-color: #1a3c5e;
+        color: white;
+        font-weight: 500;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .table tbody td { vertical-align: middle; }
+    .table tbody tr:hover { background-color: #f0f7ff; }
+    .badge-staff    { background-color: #2e86c1; }
+    .badge-inativo  { background-color: #94a3b8; }
+    .btn-acao { padding: 3px 8px; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <span class="text-muted small">{{ usuarios.count }} usuário{{ usuarios.count|pluralize:",s" }} cadastrado{{ usuarios.count|pluralize:",s" }}</span>
+    <a href="{% url 'simulador:usuario_criar' %}" class="btn btn-primary btn-sm rounded-pill">
+        <i class="bi bi-person-plus-fill me-1"></i>Novo Usuário
+    </a>
+</div>
+
+<div class="card" style="border:none; border-radius:12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div class="card-header d-flex justify-content-between align-items-center py-3"
+         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:12px 12px 0 0;">
+        <span><i class="bi bi-table me-2"></i>Usuários do Sistema</span>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Usuário</th>
+                        <th>Nome Completo</th>
+                        <th>E-mail</th>
+                        <th>Perfil</th>
+                        <th>Simulações</th>
+                        <th>Situação</th>
+                        <th>Desde</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr class="{% if not u.is_active %}table-secondary{% endif %}">
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="avatar">{{ u.username|slice:":2"|upper }}</div>
+                                <span class="fw-semibold">{{ u.username }}</span>
+                                {% if u.pk == request.user.pk %}
+                                    <span class="badge bg-secondary" style="font-size:0.65rem;">você</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td>{{ u.get_full_name|default:"—" }}</td>
+                        <td class="small text-muted">{{ u.email|default:"—" }}</td>
+                        <td>
+                            {% if u.is_staff %}
+                                <span class="badge badge-staff">Admin</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark border">Corretor</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="badge bg-primary rounded-pill">{{ u.total_sims }}</span>
+                        </td>
+                        <td>
+                            {% if u.is_active %}
+                                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Ativo</span>
+                            {% else %}
+                                <span class="badge badge-inativo"><i class="bi bi-x-circle me-1"></i>Inativo</span>
+                            {% endif %}
+                        </td>
+                        <td class="small text-muted text-nowrap">{{ u.date_joined|date:"d/m/Y" }}</td>
+                        <td>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="{% url 'simulador:usuario_editar' u.pk %}"
+                                   class="btn btn-outline-primary btn-acao" title="Editar">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                {% if u.pk != request.user.pk %}
+                                <form method="post" action="{% url 'simulador:usuario_toggle_ativo' u.pk %}" class="d-inline">
+                                    {% csrf_token %}
+                                    <button type="submit"
+                                            class="btn btn-acao {% if u.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}"
+                                            title="{% if u.is_active %}Desativar{% else %}Ativar{% endif %}">
+                                        <i class="bi bi-{% if u.is_active %}person-dash{% else %}person-check{% endif %}"></i>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-5">
+                            <i class="bi bi-people fs-1 d-block mb-2 opacity-25"></i>
+                            Nenhum usuário encontrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

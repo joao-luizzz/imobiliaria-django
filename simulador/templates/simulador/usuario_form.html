@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{% if modo == 'criar' %}Novo Usuário{% else %}Editar Usuário{% endif %} — Imobiliária{% endblock %}
+{% block page_title %}
+    <i class="bi bi-person-{% if modo == 'criar' %}plus-fill{% else %}gear-fill{% endif %} me-2"></i>
+    {% if modo == 'criar' %}Novo Usuário{% else %}Editar: {{ usuario.username }}{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .form-control:focus, .form-check-input:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
+    }
+    .section-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #94a3b8;
+        font-weight: 600;
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-7">
+
+        <div class="mb-3">
+            <a href="{% url 'simulador:usuarios_lista' %}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left me-1"></i>Voltar
+            </a>
+        </div>
+
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-person-{% if modo == 'criar' %}plus-fill{% else %}gear-fill{% endif %} me-2"></i>
+                {% if modo == 'criar' %}Cadastrar novo usuário{% else %}Editar usuário{% endif %}
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <!-- Identificação -->
+                        <div class="col-12">
+                            <div class="section-title">Identificação</div>
+                        </div>
+
+                        {% if modo == 'criar' %}
+                        <div class="col-12">
+                            <label class="form-label">
+                                <i class="bi bi-at me-1"></i>Nome de usuário <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" name="username" class="form-control"
+                                   placeholder="ex: joao.silva"
+                                   value="{{ request.POST.username|default:'' }}"
+                                   maxlength="150" required autofocus>
+                            <div class="form-text">Sem espaços. Letras, números e _ @ + . -</div>
+                        </div>
+                        {% else %}
+                        <div class="col-12">
+                            <label class="form-label">Nome de usuário</label>
+                            <input type="text" class="form-control" value="{{ usuario.username }}" disabled>
+                            <div class="form-text">O nome de usuário não pode ser alterado.</div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-person me-1"></i>Nome</label>
+                            <input type="text" name="first_name" class="form-control"
+                                   placeholder="ex: João"
+                                   value="{{ form_data.first_name }}"
+                                   maxlength="150">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-person me-1"></i>Sobrenome</label>
+                            <input type="text" name="last_name" class="form-control"
+                                   placeholder="ex: Silva"
+                                   value="{{ form_data.last_name }}"
+                                   maxlength="150">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-envelope me-1"></i>E-mail</label>
+                            <input type="email" name="email" class="form-control"
+                                   placeholder="ex: joao@imobiliaria.com"
+                                   value="{{ form_data.email }}">
+                        </div>
+
+                        <!-- Senha -->
+                        <div class="col-12 mt-2">
+                            <div class="section-title">
+                                {% if modo == 'criar' %}Senha{% else %}Alterar Senha{% endif %}
+                            </div>
+                        </div>
+
+                        {% if modo == 'editar' %}
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Deixe em branco para manter a senha atual.
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-lock me-1"></i>Senha {% if modo == 'criar' %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            <input type="password" name="password1" class="form-control"
+                                   placeholder="Mínimo 6 caracteres"
+                                   {% if modo == 'criar' %}required{% endif %}>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-lock-fill me-1"></i>Confirmar Senha {% if modo == 'criar' %}<span class="text-danger">*</span>{% endif %}
+                            </label>
+                            <input type="password" name="password2" class="form-control"
+                                   placeholder="Repita a senha"
+                                   {% if modo == 'criar' %}required{% endif %}>
+                        </div>
+
+                        <!-- Permissões -->
+                        <div class="col-12 mt-2">
+                            <div class="section-title">Permissões</div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" name="is_staff" id="is_staff"
+                                       {% if form_data.is_staff %}checked{% endif %}
+                                       {% if usuario and usuario.pk == request.user.pk %}disabled{% endif %}>
+                                <label class="form-check-label" for="is_staff">
+                                    <strong>Administrador</strong>
+                                    <small class="text-muted d-block">Acesso a todos os registros, dashboard completo e gestão de usuários.</small>
+                                </label>
+                            </div>
+                            {% if usuario and usuario.pk == request.user.pk %}
+                            <div class="form-text text-warning">
+                                <i class="bi bi-exclamation-triangle me-1"></i>Você não pode alterar seu próprio perfil de administrador.
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Botões -->
+                        <div class="col-12 d-flex justify-content-end gap-2 mt-2">
+                            <a href="{% url 'simulador:usuarios_lista' %}" class="btn btn-outline-secondary">
+                                Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4">
+                                <i class="bi bi-{% if modo == 'criar' %}person-plus-fill{% else %}check-lg{% endif %} me-1"></i>
+                                {% if modo == 'criar' %}Criar Usuário{% else %}Salvar Alterações{% endif %}
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Perfil — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-person-circle me-2"></i>Meu Perfil{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .form-control:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
+    }
+    .section-title {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+        color: #94a3b8;
+        font-weight: 600;
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .avatar-circle {
+        width: 72px; height: 72px;
+        border-radius: 50%;
+        background: linear-gradient(135deg,#1a3c5e,#2e86c1);
+        color: white;
+        font-size: 1.8rem;
+        font-weight: 700;
+        display: flex; align-items: center; justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-6">
+
+        <!-- Avatar + username card -->
+        <div class="card mb-4">
+            <div class="card-body p-4 d-flex align-items-center gap-4">
+                <div class="avatar-circle flex-shrink-0">
+                    {{ request.user.username|slice:":2"|upper }}
+                </div>
+                <div>
+                    <div class="fw-700 fs-5 text-dark fw-bold">{{ request.user.username }}</div>
+                    <div class="text-muted small">
+                        {% if request.user.is_staff %}
+                        <span class="badge" style="background:#1d4ed8;">Administrador</span>
+                        {% else %}
+                        <span class="badge" style="background:#0d9488;">Corretor</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-muted small mt-1">
+                        <i class="bi bi-calendar3 me-1"></i>
+                        Membro desde {{ request.user.date_joined|date:"d/m/Y" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Edit form -->
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-pencil-square me-2"></i>Editar Perfil
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <!-- Dados pessoais -->
+                        <div class="col-12">
+                            <div class="section-title">Dados Pessoais</div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-person me-1"></i>Nome</label>
+                            <input type="text" name="first_name" class="form-control"
+                                   placeholder="ex: João"
+                                   value="{{ form_data.first_name }}"
+                                   maxlength="150">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-person me-1"></i>Sobrenome</label>
+                            <input type="text" name="last_name" class="form-control"
+                                   placeholder="ex: Silva"
+                                   value="{{ form_data.last_name }}"
+                                   maxlength="150">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-envelope me-1"></i>E-mail</label>
+                            <input type="email" name="email" class="form-control"
+                                   placeholder="ex: joao@imobiliaria.com"
+                                   value="{{ form_data.email }}">
+                        </div>
+
+                        <!-- Trocar senha -->
+                        <div class="col-12 mt-2">
+                            <div class="section-title">Trocar Senha</div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 small mb-0">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Deixe em branco para manter a senha atual.
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-lock me-1"></i>Nova Senha</label>
+                            <input type="password" name="password1" class="form-control"
+                                   placeholder="Mínimo 6 caracteres">
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label"><i class="bi bi-lock-fill me-1"></i>Confirmar Nova Senha</label>
+                            <input type="password" name="password2" class="form-control"
+                                   placeholder="Repita a senha">
+                        </div>
+
+                        <!-- Submit -->
+                        <div class="col-12 d-flex justify-content-end mt-2">
+                            <button type="submit" class="btn btn-primary rounded-pill px-4"
+                                style="background:linear-gradient(135deg,#1a3c5e,#2e86c1); border:none;">
+                                <i class="bi bi-check-lg me-1"></i>Salvar Alterações
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

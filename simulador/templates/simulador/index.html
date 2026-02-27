@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}Simulador — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-calculator-fill me-2"></i>Simulador de Financiamento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-card {
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        border-radius: 12px;
+        padding: 28px;
+        margin-bottom: 28px;
+    }
+    .summary-item {
+        background: rgba(255,255,255,0.15);
+        border-radius: 10px;
+        padding: 14px;
+        text-align: center;
+    }
+    .summary-item .label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; }
+    .summary-item .value { font-size: 1.2rem; font-weight: 700; margin-top: 4px; }
+    .table thead th { background-color: #1a3c5e; color: white; font-weight: 500; text-align: center; }
+    .table tbody td { text-align: center; vertical-align: middle; }
+    .table tbody tr:hover { background-color: #eaf2fb; }
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .form-control:focus, .form-check-input:focus {
+        border-color: #2e86c1;
+        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
+    }
+    .btn-simulate {
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        border: none;
+        padding: 10px 36px;
+        font-size: 1rem;
+        transition: opacity 0.2s;
+    }
+    .btn-simulate:hover { opacity: 0.9; color: white; }
+    .badge-sac { background-color: #0d6efd; }
+    .badge-price { background-color: #198754; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mb-4">
+    <div class="col-12 col-lg-8">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-calculator me-2"></i>Dados do Financiamento
+            </div>
+            <div class="card-body p-4">
+                <form method="POST" action="">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <!-- Nome do Cliente -->
+                        <div class="col-12">
+                            <label for="cliente" class="form-label">
+                                <i class="bi bi-person me-1"></i>Nome do Cliente
+                            </label>
+                            <input
+                                type="text"
+                                id="cliente"
+                                name="cliente"
+                                class="form-control"
+                                placeholder="ex: João Silva"
+                                value="{{ request.POST.cliente }}"
+                                maxlength="150"
+                                required
+                            >
+                        </div>
+
+                        <!-- Valor do Imóvel -->
+                        <div class="col-12 col-md-6">
+                            <label for="valor_imovel" class="form-label">
+                                <i class="bi bi-building me-1"></i>Valor do Imóvel (R$)
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" id="valor_imovel" name="valor_imovel" class="form-control"
+                                    placeholder="ex: 350000.00" min="0" step="0.01"
+                                    value="{{ request.POST.valor_imovel }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Entrada -->
+                        <div class="col-12 col-md-6">
+                            <label for="entrada" class="form-label">
+                                <i class="bi bi-cash-coin me-1"></i>Entrada (R$)
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" id="entrada" name="entrada" class="form-control"
+                                    placeholder="ex: 70000.00" min="0" step="0.01"
+                                    value="{{ request.POST.entrada }}" required>
+                            </div>
+                        </div>
+
+                        <!-- Taxa de Juros -->
+                        <div class="col-12 col-md-6">
+                            <label for="taxa_juros" class="form-label">
+                                <i class="bi bi-percent me-1"></i>Taxa de Juros Mensal (%)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" id="taxa_juros" name="taxa_juros" class="form-control"
+                                    placeholder="ex: 0.75" min="0.01" step="0.01"
+                                    value="{{ request.POST.taxa_juros }}" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <!-- Prazo -->
+                        <div class="col-12 col-md-6">
+                            <label for="meses" class="form-label">
+                                <i class="bi bi-calendar3 me-1"></i>Prazo (meses)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" id="meses" name="meses" class="form-control"
+                                    placeholder="ex: 360" min="1" step="1"
+                                    value="{{ request.POST.meses }}" required>
+                                <span class="input-group-text">meses</span>
+                            </div>
+                        </div>
+
+                        <!-- Anotações -->
+                        <div class="col-12">
+                            <label for="observacoes" class="form-label">
+                                <i class="bi bi-sticky me-1"></i>Anotações <small class="text-muted fw-normal">(opcional)</small>
+                            </label>
+                            <textarea id="observacoes" name="observacoes" class="form-control"
+                                      rows="3" placeholder="Observações sobre o cliente ou a negociação…">{{ request.POST.observacoes }}</textarea>
+                        </div>
+
+                        <!-- Sistema de Amortização -->
+                        <div class="col-12">
+                            <label class="form-label d-block">
+                                <i class="bi bi-toggles me-1"></i>Sistema de Amortização
+                            </label>
+                            <div class="d-flex gap-4">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="sistema_sac" value="SAC"
+                                        {% if request.POST.sistema == 'SAC' or not request.POST.sistema %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-primary" for="sistema_sac">
+                                        <i class="bi bi-graph-down-arrow me-1"></i>SAC
+                                        <small class="text-muted fw-normal d-block">Parcelas decrescentes</small>
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="sistema_price" value="PRICE"
+                                        {% if request.POST.sistema == 'PRICE' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-success" for="sistema_price">
+                                        <i class="bi bi-bar-chart-line me-1"></i>PRICE
+                                        <small class="text-muted fw-normal d-block">Parcelas fixas</small>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botão -->
+                        <div class="col-12 text-center mt-2">
+                            <button type="submit" class="btn btn-simulate btn-primary text-white rounded-pill">
+                                <i class="bi bi-calculator-fill me-2"></i>Simular Financiamento
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if resultado %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-10">
+
+        <div class="summary-card">
+            <h5 class="fw-bold mb-4 text-center">
+                <i class="bi bi-clipboard-data me-2"></i>Resumo da Simulação
+                {% if resultado.cliente %}<span class="fw-normal opacity-75">— {{ resultado.cliente }}</span>{% endif %}
+                &nbsp;<span class="badge {% if resultado.sistema == 'SAC' %}badge-sac{% else %}badge-price{% endif %} fs-6">
+                    {{ resultado.sistema }}
+                </span>
+            </h5>
+            <div class="row g-3">
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Valor do Imóvel</div>
+                        <div class="value">R$ {{ resultado.valor_imovel }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Entrada</div>
+                        <div class="value">R$ {{ resultado.entrada }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Valor Financiado</div>
+                        <div class="value">R$ {{ resultado.valor_financiado }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Taxa Mensal</div>
+                        <div class="value">{{ resultado.taxa_juros }}%</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Prazo</div>
+                        <div class="value">{{ resultado.meses }} meses</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">1ª Parcela</div>
+                        <div class="value">R$ {{ resultado.primeira_parcela }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Última Parcela</div>
+                        <div class="value">R$ {{ resultado.ultima_parcela }}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="summary-item">
+                        <div class="label">Total Pago</div>
+                        <div class="value">R$ {{ resultado.total_pago }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-table me-2"></i>Tabela de Parcelas
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Parcela (R$)</th>
+                                <th>Amortização (R$)</th>
+                                <th>Juros (R$)</th>
+                                <th>Saldo Devedor (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for parcela in resultado.parcelas %}
+                            <tr>
+                                <td><span class="badge bg-secondary">{{ parcela.numero }}</span></td>
+                                <td class="fw-semibold text-primary">{{ parcela.valor }}</td>
+                                <td>{{ parcela.amortizacao }}</td>
+                                <td class="text-danger">{{ parcela.juros }}</td>
+                                <td>{{ parcela.saldo_devedor }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endif %}
+{% endblock %}

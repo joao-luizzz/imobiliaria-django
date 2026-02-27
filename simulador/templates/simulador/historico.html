@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}Histórico — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-clock-history me-2"></i>Histórico de Simulações{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+        margin-bottom: 20px;
+    }
+    .filter-card .card-body { padding: 16px 20px; }
+    .table thead th {
+        background-color: #1a3c5e;
+        color: white;
+        font-weight: 500;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .table tbody td { vertical-align: middle; }
+    .table tbody tr:hover { background-color: #f0f7ff; }
+    .badge-novo       { background-color: #6c757d; }
+    .badge-em_analise { background-color: #f59e0b; }
+    .badge-aprovado   { background-color: #10b981; }
+    .badge-reprovado  { background-color: #ef4444; }
+    .badge-sac        { background-color: #3b82f6; }
+    .badge-price      { background-color: #8b5cf6; }
+    .status-select {
+        border: none;
+        border-radius: 6px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 3px 6px;
+        cursor: pointer;
+        color: white;
+        appearance: none;
+        -webkit-appearance: none;
+        text-align: center;
+    }
+    .status-select.status-novo       { background-color: #6c757d; }
+    .status-select.status-em_analise { background-color: #f59e0b; }
+    .status-select.status-aprovado   { background-color: #10b981; }
+    .status-select.status-reprovado  { background-color: #ef4444; }
+    .pagination .page-link { color: #1a3c5e; }
+    .pagination .page-item.active .page-link {
+        background-color: #1a3c5e;
+        border-color: #1a3c5e;
+    }
+    .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+    .empty-state i { font-size: 3rem; margin-bottom: 12px; display: block; }
+    .btn-excluir { padding: 3px 8px; font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filtros -->
+<div class="card filter-card">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-12 col-md-4">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                    <i class="bi bi-search me-1"></i>Buscar cliente
+                </label>
+                <input
+                    type="text"
+                    name="busca"
+                    class="form-control form-control-sm"
+                    placeholder="Nome do cliente..."
+                    value="{{ busca }}"
+                >
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                    <i class="bi bi-flag me-1"></i>Status
+                </label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for val, label in status_choices %}
+                        <option value="{{ val }}" {% if filtro_status == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="form-label small fw-semibold text-muted mb-1">
+                    <i class="bi bi-toggles me-1"></i>Sistema
+                </label>
+                <select name="sistema" class="form-select form-select-sm">
+                    <option value="">Todos</option>
+                    {% for val, label in sistema_choices %}
+                        <option value="{{ val }}" {% if filtro_sistema == val %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary flex-fill">
+                    <i class="bi bi-funnel me-1"></i>Filtrar
+                </button>
+                <a href="{% url 'simulador:historico' %}" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabela -->
+<div class="card" style="border:none; border-radius:12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div class="card-header d-flex justify-content-between align-items-center py-3"
+         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:12px 12px 0 0;">
+        <span><i class="bi bi-table me-2"></i>Simulações</span>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge bg-white text-dark fw-semibold">{{ total_filtrado }} registro{{ total_filtrado|pluralize:",s" }}</span>
+            <a href="{% url 'simulador:exportar_historico' %}?busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}"
+               class="btn btn-sm btn-light rounded-pill"
+               title="Exportar resultado atual em Excel">
+                <i class="bi bi-file-earmark-excel text-success me-1"></i>Exportar
+            </a>
+        </div>
+    </div>
+
+    {% if simulacoes %}
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        {% if request.user.is_staff %}<th>Usuário</th>{% endif %}
+                        <th>Cliente</th>
+                        <th>Valor Imóvel</th>
+                        <th>Entrada</th>
+                        <th>Taxa</th>
+                        <th>Prazo</th>
+                        <th>Sistema</th>
+                        <th>Status</th>
+                        <th>Data</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sim in simulacoes %}
+                    <tr>
+                        <td class="text-muted small">{{ sim.pk }}</td>
+                        {% if request.user.is_staff %}
+                            <td class="small">{{ sim.usuario.username }}</td>
+                        {% endif %}
+                        <td class="fw-semibold">
+                            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="text-decoration-none text-dark">
+                                {{ sim.cliente }}
+                            </a>
+                        </td>
+                        <td>R$ {{ sim.valor_imovel|floatformat:2 }}</td>
+                        <td>R$ {{ sim.entrada|floatformat:2 }}</td>
+                        <td>{{ sim.taxa_juros }}%</td>
+                        <td>{{ sim.prazo_meses }}m</td>
+                        <td>
+                            <span class="badge badge-{{ sim.sistema|lower }}">{{ sim.sistema }}</span>
+                        </td>
+                        <td>
+                            <form method="post" action="{% url 'simulador:alterar_status' sim.pk %}" class="d-inline">
+                                {% csrf_token %}
+                                <select name="status"
+                                        class="status-select status-{{ sim.status }}"
+                                        onchange="this.form.submit()"
+                                        title="Alterar status">
+                                    {% for val, label in status_choices %}
+                                        <option value="{{ val }}" {% if sim.status == val %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                        </td>
+                        <td class="small text-muted text-nowrap">{{ sim.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td>
+                            <div class="d-flex gap-1 justify-content-center">
+                                <a href="{% url 'simulador:exportar_pdf' sim.pk %}"
+                                   class="btn btn-outline-danger btn-excluir" title="Baixar PDF">
+                                    <i class="bi bi-file-earmark-pdf"></i>
+                                </a>
+                                <a href="{% url 'simulador:exportar_excel' sim.pk %}"
+                                   class="btn btn-outline-success btn-excluir" title="Baixar Excel">
+                                    <i class="bi bi-file-earmark-excel"></i>
+                                </a>
+                                <button
+                                    type="button"
+                                    class="btn btn-outline-secondary btn-excluir"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#modalExcluir"
+                                    data-pk="{{ sim.pk }}"
+                                    data-cliente="{{ sim.cliente }}"
+                                    title="Excluir"
+                                >
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginação -->
+    {% if simulacoes.has_other_pages %}
+    <div class="card-footer bg-white border-top-0 py-3">
+        <nav>
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+                {% if simulacoes.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ simulacoes.previous_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                {% endif %}
+
+                {% for num in simulacoes.paginator.page_range %}
+                    <li class="page-item {% if simulacoes.number == num %}active{% endif %}">
+                        <a class="page-link" href="?page={{ num }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">{{ num }}</a>
+                    </li>
+                {% endfor %}
+
+                {% if simulacoes.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ simulacoes.next_page_number }}&busca={{ busca }}&status={{ filtro_status }}&sistema={{ filtro_sistema }}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card-body empty-state">
+        <i class="bi bi-inbox"></i>
+        <p class="fw-semibold mb-1">Nenhuma simulação encontrada.</p>
+        <small>
+            {% if busca or filtro_status or filtro_sistema %}
+                Tente remover os filtros aplicados.
+            {% else %}
+                As simulações feitas aparecerão aqui automaticamente.
+            {% endif %}
+        </small>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Modal de confirmação de exclusão -->
+<div class="modal fade" id="modalExcluir" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius:14px; border:none;">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirmar exclusão
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="mb-0">
+                    Deseja excluir a simulação de <strong id="modalCliente"></strong>?
+                    <br><small class="text-muted">Esta ação não pode ser desfeita.</small>
+                </p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                <form id="formExcluir" method="post">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="bi bi-trash me-1"></i>Excluir
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Modal de exclusão
+    const modalExcluir = document.getElementById('modalExcluir');
+    modalExcluir.addEventListener('show.bs.modal', function(e) {
+        const btn = e.relatedTarget;
+        const pk = btn.getAttribute('data-pk');
+        const cliente = btn.getAttribute('data-cliente');
+        document.getElementById('modalCliente').textContent = cliente;
+        document.getElementById('formExcluir').action = `/historico/${pk}/excluir/`;
+    });
+
+    // Atualiza cor do select de status ao mudar
+    document.querySelectorAll('.status-select').forEach(function(sel) {
+        sel.addEventListener('change', function() {
+            sel.className = 'status-select status-' + sel.value;
+        });
+    });
+</script>
+{% endblock %}
