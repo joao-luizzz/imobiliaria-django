@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}{% if acao == 'Nova' %}Nova Meta{% else %}Editar Meta{% endif %}{% endblock %}
+{% block page_title %}{{ acao }} Meta{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-trophy-fill me-2"></i>{{ acao }} Meta Mensal</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {% if acao == 'Nova' %}
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="form-label">Mês</label>
+              <select class="form-select" name="mes">
+                <option value="1" {% if mes_padrao == 1 %}selected{% endif %}>Janeiro</option>
+                <option value="2" {% if mes_padrao == 2 %}selected{% endif %}>Fevereiro</option>
+                <option value="3" {% if mes_padrao == 3 %}selected{% endif %}>Março</option>
+                <option value="4" {% if mes_padrao == 4 %}selected{% endif %}>Abril</option>
+                <option value="5" {% if mes_padrao == 5 %}selected{% endif %}>Maio</option>
+                <option value="6" {% if mes_padrao == 6 %}selected{% endif %}>Junho</option>
+                <option value="7" {% if mes_padrao == 7 %}selected{% endif %}>Julho</option>
+                <option value="8" {% if mes_padrao == 8 %}selected{% endif %}>Agosto</option>
+                <option value="9" {% if mes_padrao == 9 %}selected{% endif %}>Setembro</option>
+                <option value="10" {% if mes_padrao == 10 %}selected{% endif %}>Outubro</option>
+                <option value="11" {% if mes_padrao == 11 %}selected{% endif %}>Novembro</option>
+                <option value="12" {% if mes_padrao == 12 %}selected{% endif %}>Dezembro</option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label">Ano</label>
+              <select class="form-select" name="ano">
+                {% for a in anos %}
+                <option value="{{ a }}" {% if a == ano_padrao %}selected{% endif %}>{{ a }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          {% else %}
+          <p class="text-muted">Meta para: <strong>{{ meta.mes }}/{{ meta.ano }}</strong></p>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label">Meta de Simulações</label>
+            <input type="number" class="form-control" name="meta_simulacoes" min="0"
+                   value="{{ meta.meta_simulacoes|default:0 }}" required>
+            <div class="form-text">Número de simulações a realizar no mês.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Meta de Volume (R$)</label>
+            <input type="text" class="form-control" name="meta_valor"
+                   value="{{ meta.meta_valor|default:'0' }}" placeholder="Ex: 1000000">
+            <div class="form-text">Volume total de imóveis (soma dos valores).</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-2"></i>Salvar</button>
+            <a href="{% url 'simulador:metas' %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

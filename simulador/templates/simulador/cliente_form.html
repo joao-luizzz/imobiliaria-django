@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}{{ acao }} Cliente — Imobiliária{% endblock %}
+{% block page_title %}
+    {% if acao == "Editar" %}
+        <i class="bi bi-pencil-fill me-2"></i>
+    {% else %}
+        <i class="bi bi-person-plus-fill me-2"></i>
+    {% endif %}
+    {{ acao }} Cliente
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-card {
+        border: none;
+        border-radius: 14px;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.09);
+        max-width: 760px;
+        margin: 0 auto;
+    }
+    .form-card .card-header {
+        border-radius: 14px 14px 0 0 !important;
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        font-weight: 600;
+        padding: 16px 24px;
+    }
+    .form-card .card-body { padding: 28px 24px; }
+    .form-section-label {
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 1.1px;
+        color: #64748b;
+        font-weight: 700;
+        margin-bottom: 12px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    [data-bs-theme="dark"] .form-section-label {
+        color: #94a3b8;
+        border-bottom-color: #334155;
+    }
+    .field-required::after {
+        content: " *";
+        color: #ef4444;
+        font-weight: 700;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="form-card card">
+    <div class="card-header d-flex align-items-center gap-2">
+        {% if acao == "Editar" %}
+            <i class="bi bi-pencil-fill"></i>
+        {% else %}
+            <i class="bi bi-person-plus-fill"></i>
+        {% endif %}
+        <span>{{ acao }} Cliente{% if cliente %}: {{ cliente.nome }}{% endif %}</span>
+    </div>
+
+    <div class="card-body">
+        <form method="post" novalidate>
+            {% csrf_token %}
+
+            <!-- Dados Pessoais -->
+            <p class="form-section-label"><i class="bi bi-person me-1"></i>Dados Pessoais</p>
+            <div class="row g-3 mb-4">
+                <!-- Nome -->
+                <div class="col-12">
+                    <label for="id_nome" class="form-label fw-semibold field-required">Nome completo</label>
+                    <input
+                        type="text"
+                        id="id_nome"
+                        name="nome"
+                        class="form-control"
+                        placeholder="Ex: João da Silva"
+                        value="{{ cliente.nome|default:'' }}"
+                        required
+                        maxlength="200"
+                        autofocus
+                    >
+                    <div class="invalid-feedback">O nome é obrigatório.</div>
+                </div>
+
+                <!-- CPF -->
+                <div class="col-12 col-md-6">
+                    <label for="id_cpf" class="form-label fw-semibold">CPF</label>
+                    <input
+                        type="text"
+                        id="id_cpf"
+                        name="cpf"
+                        class="form-control"
+                        placeholder="000.000.000-00"
+                        value="{{ cliente.cpf|default:'' }}"
+                        maxlength="14"
+                    >
+                </div>
+
+                <!-- Telefone -->
+                <div class="col-12 col-md-6">
+                    <label for="id_telefone" class="form-label fw-semibold">Telefone</label>
+                    <input
+                        type="text"
+                        id="id_telefone"
+                        name="telefone"
+                        class="form-control"
+                        placeholder="(11) 90000-0000"
+                        value="{{ cliente.telefone|default:'' }}"
+                        maxlength="20"
+                    >
+                </div>
+            </div>
+
+            <!-- Contato e Financeiro -->
+            <p class="form-section-label"><i class="bi bi-envelope me-1"></i>Contato &amp; Financeiro</p>
+            <div class="row g-3 mb-4">
+                <!-- E-mail -->
+                <div class="col-12 col-md-7">
+                    <label for="id_email" class="form-label fw-semibold">E-mail</label>
+                    <input
+                        type="email"
+                        id="id_email"
+                        name="email"
+                        class="form-control"
+                        placeholder="cliente@exemplo.com"
+                        value="{{ cliente.email|default:'' }}"
+                        maxlength="254"
+                    >
+                </div>
+
+                <!-- Renda Mensal -->
+                <div class="col-12 col-md-5">
+                    <label for="id_renda_mensal" class="form-label fw-semibold">Renda Mensal (R$)</label>
+                    <div class="input-group">
+                        <span class="input-group-text text-muted">R$</span>
+                        <input
+                            type="number"
+                            id="id_renda_mensal"
+                            name="renda_mensal"
+                            class="form-control"
+                            placeholder="0,00"
+                            value="{{ cliente.renda_mensal|default:'' }}"
+                            min="0"
+                            step="0.01"
+                        >
+                    </div>
+                    <div class="form-text">Renda bruta mensal declarada.</div>
+                </div>
+            </div>
+
+            <!-- Observações -->
+            <p class="form-section-label"><i class="bi bi-chat-text me-1"></i>Observações</p>
+            <div class="mb-4">
+                <label for="id_observacoes" class="form-label fw-semibold">Observações</label>
+                <textarea
+                    id="id_observacoes"
+                    name="observacoes"
+                    class="form-control"
+                    rows="4"
+                    placeholder="Anotações sobre o cliente, preferências, histórico de negociação..."
+                >{{ cliente.observacoes|default:'' }}</textarea>
+                <div class="form-text">Campo livre para informações adicionais.</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="d-flex justify-content-end gap-2 pt-2 border-top">
+                <a href="{% url 'simulador:clientes_lista' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-x-lg me-1"></i>Cancelar
+                </a>
+                <button type="submit" class="btn btn-primary px-4">
+                    <i class="bi bi-check-lg me-1"></i>Salvar Cliente
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Bootstrap validation feedback
+    (function () {
+        'use strict';
+        var forms = document.querySelectorAll('form[novalidate]');
+        forms.forEach(function (form) {
+            form.addEventListener('submit', function (event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                form.classList.add('was-validated');
+            }, false);
+        });
+    })();
+
+    // CPF mask (basic)
+    document.getElementById('id_cpf').addEventListener('input', function () {
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+        if (v.length > 9) v = v.replace(/^(\d{3})(\d{3})(\d{3})(\d{0,2})/, '$1.$2.$3-$4');
+        else if (v.length > 6) v = v.replace(/^(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+        else if (v.length > 3) v = v.replace(/^(\d{3})(\d{0,3})/, '$1.$2');
+        this.value = v;
+    });
+
+    // Telefone mask (basic)
+    document.getElementById('id_telefone').addEventListener('input', function () {
+        let v = this.value.replace(/\D/g, '').slice(0, 11);
+        if (v.length > 10) v = v.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+        else if (v.length > 6) v = v.replace(/^(\d{2})(\d{4,5})(\d{0,4})/, '($1) $2-$3');
+        else if (v.length > 2) v = v.replace(/^(\d{2})(\d{0,5})/, '($1) $2');
+        this.value = v;
+    });
+</script>
+{% endblock %}

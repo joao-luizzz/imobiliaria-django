@@ -3,10 +3,10 @@ from django.views.decorators.http import require_http_methods, require_POST
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.contrib import messages
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Q
 from django.core.paginator import Paginator
 from django.http import HttpResponse
-from .models import Simulation
+from .models import Simulation, Cliente, MetaCorretor, AuditLog, UserProfile
 from .calculos import calcular_sac, calcular_price
 from collections import defaultdict
 from functools import wraps
@@ -63,7 +63,7 @@ def simular(request):
             else:
                 parcelas = calcular_price(valor_financiado, taxa_juros, prazo_meses, mip_mensal, dfi_mensal, valor_imovel)
 
-            Simulation.objects.create(
+            sim = Simulation.objects.create(
                 usuario=request.user,
                 cliente=cliente,
                 valor_imovel=valor_imovel,
@@ -76,6 +76,8 @@ def simular(request):
                 observacoes=observacoes,
                 tags=tags,
             )
+            registrar_log(request, "Criou simulação", "Simulation", sim.pk,
+                          f"{cliente} — R$ {valor_imovel:.0f} ({sistema})")
 
             total_pago = sum(float(p["valor"]) for p in parcelas) if parcelas else 0
             total_juros = total_pago - valor_financiado
@@ -246,6 +248,7 @@ def excluir_simulacao(request, pk):
 
     cliente = sim.cliente
     sim.delete()
+    registrar_log(request, "Excluiu simulação", "Simulation", pk, cliente)
     messages.success(request, f'Simulação de "{cliente}" excluída com sucesso.')
     return redirect('simulador:historico')
 
@@ -286,7 +289,7 @@ def editar_simulacao(request, pk):
             sim.observacoes = observacoes
             sim.tags = request.POST.get('tags', '').strip()
             sim.save()
-
+            registrar_log(request, "Editou simulação", "Simulation", sim.pk, cliente)
             messages.success(request, 'Simulação atualizada com sucesso.')
             return redirect('simulador:detalhe_simulacao', pk=sim.pk)
         except (ValueError, TypeError) as e:
@@ -320,6 +323,8 @@ def alterar_status(request, pk):
     if novo_status in status_validos:
         sim.status = novo_status
         sim.save(update_fields=['status'])
+        registrar_log(request, "Alterou status", "Simulation", pk,
+                      f"{sim.cliente}: {sim.get_status_display()}")
         messages.success(request, f'Status de "{sim.cliente}" atualizado para "{sim.get_status_display()}".')
     else:
         messages.error(request, 'Status inválido.')
@@ -1307,6 +1312,7 @@ def usuario_criar(request):
                 password=password1,
                 is_staff=is_staff,
             )
+            registrar_log(request, "Criou usuário", "User", None, username)
             messages.success(request, f'Usuário "{username}" criado com sucesso.')
             return redirect('simulador:usuarios_lista')
 
@@ -1346,6 +1352,7 @@ def usuario_editar(request, pk):
             if password1:
                 usuario.set_password(password1)
             usuario.save()
+            registrar_log(request, "Editou usuário", "User", usuario.pk, usuario.username)
             messages.success(request, f'Usuário "{usuario.username}" atualizado com sucesso.')
             return redirect('simulador:usuarios_lista')
 
@@ -1363,6 +1370,7 @@ def usuario_toggle_ativo(request, pk):
         usuario.is_active = not usuario.is_active
         usuario.save(update_fields=['is_active'])
         estado = 'ativado' if usuario.is_active else 'desativado'
+        registrar_log(request, f"Usuário {estado}", "User", usuario.pk, usuario.username)
         messages.success(request, f'Usuário "{usuario.username}" {estado} com sucesso.')
     return redirect('simulador:usuarios_lista')
 
@@ -1800,3 +1808,619 @@ def api_oraculo(request):
         })
     except (ValueError, TypeError, json.JSONDecodeError) as e:
         return JsonResponse({'erro': str(e)}, status=400)
+
+
+# ── Auditoria helper ───────────────────────────────────────────────────────────
+
+def registrar_log(request, acao, obj_tipo='', obj_id=None, descricao=''):
+    try:
+        AuditLog.objects.create(
+            usuario=request.user if request.user.is_authenticated else None,
+            acao=acao,
+            objeto_tipo=obj_tipo,
+            objeto_id=obj_id,
+            descricao=descricao,
+        )
+    except Exception:
+        pass
+
+
+# ── Grupo A: Novas ferramentas ─────────────────────────────────────────────────
+
+BANCOS_REFERENCIA = [
+    ('Caixa Econômica', 8.99),
+    ('Banco do Brasil', 9.49),
+    ('Bradesco', 9.99),
+    ('Itaú', 10.49),
+    ('Santander', 10.99),
+]
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def comparativo_bancos(request):
+    resultado = None
+    if request.method == "POST":
+        try:
+            valor_financiado = float(request.POST.get("valor_financiado", 0))
+            prazo_meses = int(request.POST.get("prazo_meses", 0))
+            sistema = request.POST.get("sistema", "SAC").upper()
+            if valor_financiado <= 0 or prazo_meses <= 0:
+                raise ValueError("Valores inválidos.")
+            fn = calcular_sac if sistema == "SAC" else calcular_price
+            bancos = []
+            for nome, taxa_anual in BANCOS_REFERENCIA:
+                taxa_mensal = round(taxa_anual / 12, 4)
+                parcelas = fn(valor_financiado, taxa_mensal, prazo_meses, 0, 0, valor_financiado)
+                total_pago = sum(float(p["valor"]) for p in parcelas)
+                bancos.append({
+                    "nome": nome,
+                    "taxa_anual": taxa_anual,
+                    "taxa_mensal": round(taxa_mensal, 4),
+                    "primeira_parcela": float(parcelas[0]["valor"]),
+                    "total_pago": total_pago,
+                    "total_juros": total_pago - valor_financiado,
+                })
+            melhor = min(bancos, key=lambda b: b["total_pago"])
+            resultado = {
+                "bancos": bancos,
+                "melhor": melhor,
+                "valor_financiado": valor_financiado,
+                "prazo_meses": prazo_meses,
+                "sistema": sistema,
+                "chart_labels": json.dumps([b["nome"] for b in bancos]),
+                "chart_primeiras": json.dumps([round(b["primeira_parcela"], 2) for b in bancos]),
+                "chart_totais": json.dumps([round(b["total_pago"], 2) for b in bancos]),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/comparativo_bancos.html", {"resultado": resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def mcmv(request):
+    resultado = None
+    if request.method == "POST":
+        try:
+            renda = float(request.POST.get("renda", 0))
+            valor_imovel = float(request.POST.get("valor_imovel", 0))
+            entrada = float(request.POST.get("entrada", 0))
+            prazo_anos = int(request.POST.get("prazo_anos", 30))
+
+            if renda <= 0 or valor_imovel <= 0:
+                raise ValueError("Renda e valor do imóvel devem ser maiores que zero.")
+            if entrada >= valor_imovel:
+                raise ValueError("Entrada não pode ser maior ou igual ao valor do imóvel.")
+
+            if renda <= 2640:
+                faixa = "Faixa 1"
+                subsidio = 55000.0
+                taxa_anual = 4.25
+            elif renda <= 4400:
+                faixa = "Faixa 1,5"
+                subsidio = 47500.0
+                taxa_anual = 4.75
+            elif renda <= 8000:
+                faixa = "Faixa 2"
+                subsidio = 29000.0 * (8000.0 - renda) / (8000.0 - 4400.0)
+                subsidio = max(0.0, subsidio)
+                taxa_anual = 7.66
+            elif renda <= 12000:
+                faixa = "Faixa 3"
+                subsidio = 0.0
+                taxa_anual = 9.99
+            else:
+                faixa = "Fora do MCMV"
+                subsidio = 0.0
+                taxa_anual = 9.99
+
+            subsidio_efetivo = min(subsidio, max(0, valor_imovel - entrada))
+            valor_financiado = valor_imovel - entrada - subsidio_efetivo
+            if valor_financiado <= 0:
+                raise ValueError("Com o subsídio o imóvel pode ser quitado sem financiamento.")
+
+            prazo_meses = prazo_anos * 12
+            taxa_mensal = round(taxa_anual / 12, 4)
+            parcelas = calcular_price(valor_financiado, taxa_mensal, prazo_meses, 0, 0, valor_financiado)
+            total_pago = sum(float(p["valor"]) for p in parcelas)
+
+            resultado = {
+                "faixa": faixa,
+                "subsidio": subsidio_efetivo,
+                "taxa_anual": taxa_anual,
+                "valor_financiado": valor_financiado,
+                "primeira_parcela": float(parcelas[0]["valor"]),
+                "total_pago": total_pago,
+                "renda": renda,
+                "valor_imovel": valor_imovel,
+                "entrada": entrada,
+                "prazo_anos": prazo_anos,
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/mcmv.html", {"resultado": resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def renda_minima(request):
+    resultado = None
+    if request.method == "POST":
+        try:
+            valor_imovel = float(request.POST.get("valor_imovel", 0))
+            entrada = float(request.POST.get("entrada", 0))
+            taxa_juros = float(request.POST.get("taxa_juros", 0))
+            prazo_meses = int(request.POST.get("prazo_meses", 0))
+            comprometimento = float(request.POST.get("comprometimento", 30))
+
+            if valor_imovel <= 0 or taxa_juros <= 0 or prazo_meses <= 0:
+                raise ValueError("Valores inválidos.")
+            if entrada >= valor_imovel:
+                raise ValueError("Entrada não pode ser maior ou igual ao valor do imóvel.")
+            if not (10 <= comprometimento <= 50):
+                raise ValueError("Comprometimento deve estar entre 10% e 50%.")
+
+            valor_financiado = valor_imovel - entrada
+            parcelas_price = calcular_price(valor_financiado, taxa_juros, prazo_meses, 0, 0, valor_financiado)
+            primeira_parcela = float(parcelas_price[0]["valor"])
+
+            cenarios = []
+            for comp in [25, 30, 35]:
+                renda_min = primeira_parcela / (comp / 100)
+                cenarios.append({"comprometimento": comp, "renda_minima": renda_min})
+
+            renda_calc = primeira_parcela / (comprometimento / 100)
+
+            resultado = {
+                "renda_minima": renda_calc,
+                "primeira_parcela": primeira_parcela,
+                "comprometimento": comprometimento,
+                "cenarios": cenarios,
+                "valor_imovel": valor_imovel,
+                "entrada": entrada,
+                "valor_financiado": valor_financiado,
+                "taxa_juros": taxa_juros,
+                "prazo_meses": prazo_meses,
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/renda_minima.html", {"resultado": resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def prazo_idade(request):
+    resultado = None
+    if request.method == "POST":
+        try:
+            idade = int(request.POST.get("idade", 0))
+            prazo_desejado = int(request.POST.get("prazo_desejado", 0))
+
+            if not (18 <= idade <= 80):
+                raise ValueError("Idade deve estar entre 18 e 80 anos.")
+            if prazo_desejado <= 0:
+                raise ValueError("Prazo desejado deve ser maior que zero.")
+
+            meses_restantes_80 = (80 * 12 + 6) - (idade * 12)
+            prazo_max = max(0, meses_restantes_80)
+            prazo_efetivo = min(prazo_desejado, prazo_max)
+            foi_limitado = prazo_efetivo < prazo_desejado
+            idade_final = idade + (prazo_efetivo // 12)
+            meses_finais = prazo_efetivo % 12
+
+            resultado = {
+                "idade": idade,
+                "prazo_desejado": prazo_desejado,
+                "prazo_max": prazo_max,
+                "prazo_efetivo": prazo_efetivo,
+                "foi_limitado": foi_limitado,
+                "diferenca": prazo_desejado - prazo_efetivo,
+                "idade_ao_final": idade_final,
+                "meses_ao_final": meses_finais,
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/prazo_idade.html", {"resultado": resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def financiamento_ipca(request):
+    resultado = None
+    if request.method == "POST":
+        try:
+            valor_financiado = float(request.POST.get("valor_financiado", 0))
+            prazo_meses = int(request.POST.get("prazo_meses", 0))
+            spread = float(request.POST.get("spread", 3.5))
+            ipca_projetado = float(request.POST.get("ipca_projetado", 4.5))
+
+            if valor_financiado <= 0 or prazo_meses <= 0:
+                raise ValueError("Valores inválidos.")
+
+            def calc_cenario(ipca_anual):
+                taxa_efetiva_anual = ((1 + ipca_anual / 100) * (1 + spread / 100)) - 1
+                taxa_mensal = ((1 + taxa_efetiva_anual) ** (1 / 12) - 1) * 100
+                parcelas = calcular_sac(valor_financiado, round(taxa_mensal, 4), prazo_meses, 0, 0, valor_financiado)
+                total_pago = sum(float(p["valor"]) for p in parcelas)
+                return {
+                    "taxa_anual": round(taxa_efetiva_anual * 100, 2),
+                    "taxa_mensal": round(taxa_mensal, 4),
+                    "primeira_parcela": float(parcelas[0]["valor"]),
+                    "ultima_parcela": float(parcelas[-1]["valor"]),
+                    "total_pago": total_pago,
+                    "total_juros": total_pago - valor_financiado,
+                }
+
+            cenario_base = calc_cenario(ipca_projetado)
+            cenario_pess = calc_cenario(ipca_projetado + 2)
+            cenario_otim = calc_cenario(max(0, ipca_projetado - 2))
+
+            resultado = {
+                "valor_financiado": valor_financiado,
+                "prazo_meses": prazo_meses,
+                "spread": spread,
+                "ipca_projetado": ipca_projetado,
+                "base": cenario_base,
+                "pessimista": cenario_pess,
+                "otimista": cenario_otim,
+                "chart_labels": json.dumps(["Otimista", "Base", "Pessimista"]),
+                "chart_primeiras": json.dumps([
+                    round(cenario_otim["primeira_parcela"], 2),
+                    round(cenario_base["primeira_parcela"], 2),
+                    round(cenario_pess["primeira_parcela"], 2),
+                ]),
+                "chart_totais": json.dumps([
+                    round(cenario_otim["total_pago"], 2),
+                    round(cenario_base["total_pago"], 2),
+                    round(cenario_pess["total_pago"], 2),
+                ]),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/financiamento_ipca.html", {"resultado": resultado})
+
+
+# ── Grupo B: Clientes ──────────────────────────────────────────────────────────
+
+@login_required
+def clientes_lista(request):
+    q = request.GET.get("q", "").strip()
+    qs = Cliente.objects.filter(usuario=request.user)
+    if q:
+        qs = qs.filter(nome__icontains=q)
+    paginator = Paginator(qs, 20)
+    page = paginator.get_page(request.GET.get("page"))
+    return render(request, "simulador/clientes_lista.html", {"page_obj": page, "q": q})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def cliente_criar(request):
+    if request.method == "POST":
+        nome = request.POST.get("nome", "").strip()
+        email = request.POST.get("email", "").strip()
+        telefone = request.POST.get("telefone", "").strip()
+        cpf = request.POST.get("cpf", "").strip()
+        renda_raw = request.POST.get("renda_mensal", "").strip()
+        observacoes = request.POST.get("observacoes", "").strip()
+        if not nome:
+            messages.error(request, "O nome do cliente é obrigatório.")
+            return render(request, "simulador/cliente_form.html", {"acao": "Novo", "form_data": request.POST})
+        try:
+            renda_mensal = float(renda_raw.replace(",", ".")) if renda_raw else None
+        except ValueError:
+            renda_mensal = None
+        c = Cliente.objects.create(
+            usuario=request.user,
+            nome=nome, email=email, telefone=telefone, cpf=cpf,
+            renda_mensal=renda_mensal, observacoes=observacoes,
+        )
+        registrar_log(request, "Criou cliente", "Cliente", c.pk, nome)
+        messages.success(request, f"Cliente {nome} cadastrado com sucesso.")
+        return redirect("simulador:cliente_detalhe", pk=c.pk)
+    return render(request, "simulador/cliente_form.html", {"acao": "Novo"})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def cliente_editar(request, pk):
+    c = get_object_or_404(Cliente, pk=pk, usuario=request.user)
+    if request.method == "POST":
+        nome = request.POST.get("nome", "").strip()
+        if not nome:
+            messages.error(request, "O nome do cliente é obrigatório.")
+            return render(request, "simulador/cliente_form.html", {"acao": "Editar", "cliente": c})
+        renda_raw = request.POST.get("renda_mensal", "").strip()
+        try:
+            renda_mensal = float(renda_raw.replace(",", ".")) if renda_raw else None
+        except ValueError:
+            renda_mensal = None
+        c.nome = nome
+        c.email = request.POST.get("email", "").strip()
+        c.telefone = request.POST.get("telefone", "").strip()
+        c.cpf = request.POST.get("cpf", "").strip()
+        c.renda_mensal = renda_mensal
+        c.observacoes = request.POST.get("observacoes", "").strip()
+        c.save()
+        registrar_log(request, "Editou cliente", "Cliente", c.pk, nome)
+        messages.success(request, "Cliente atualizado.")
+        return redirect("simulador:cliente_detalhe", pk=c.pk)
+    return render(request, "simulador/cliente_form.html", {"acao": "Editar", "cliente": c})
+
+
+@login_required
+@require_POST
+def cliente_excluir(request, pk):
+    c = get_object_or_404(Cliente, pk=pk, usuario=request.user)
+    nome = c.nome
+    c.delete()
+    registrar_log(request, "Excluiu cliente", "Cliente", pk, nome)
+    messages.success(request, f"Cliente {nome} excluído.")
+    return redirect("simulador:clientes_lista")
+
+
+@login_required
+def cliente_detalhe(request, pk):
+    c = get_object_or_404(Cliente, pk=pk, usuario=request.user)
+    simulacoes = c.simulacoes_obj.order_by("-criado_em")
+    return render(request, "simulador/cliente_detalhe.html", {"cliente": c, "simulacoes": simulacoes})
+
+
+# ── Pipeline Kanban ────────────────────────────────────────────────────────────
+
+@login_required
+def pipeline(request):
+    qs = Simulation.objects.filter(usuario=request.user) if not request.user.is_staff else Simulation.objects.all()
+    colunas = {
+        "novo": {"label": "Novo", "cor": "secondary", "icone": "bi-inbox", "cards": []},
+        "em_analise": {"label": "Em Análise", "cor": "warning", "icone": "bi-hourglass-split", "cards": []},
+        "aprovado": {"label": "Aprovado", "cor": "success", "icone": "bi-check-circle", "cards": []},
+        "reprovado": {"label": "Reprovado", "cor": "danger", "icone": "bi-x-circle", "cards": []},
+    }
+    for sim in qs.select_related("usuario"):
+        if sim.status in colunas:
+            colunas[sim.status]["cards"].append(sim)
+    return render(request, "simulador/pipeline.html", {"colunas": colunas})
+
+
+@login_required
+@require_POST
+def mover_card(request, pk):
+    from django.http import JsonResponse
+    if request.user.is_staff:
+        sim = get_object_or_404(Simulation, pk=pk)
+    else:
+        sim = get_object_or_404(Simulation, pk=pk, usuario=request.user)
+    try:
+        data = json.loads(request.body)
+        novo_status = data.get("status", "")
+    except (json.JSONDecodeError, AttributeError):
+        novo_status = request.POST.get("status", "")
+    status_validos = [s for s, _ in Simulation.STATUS_CHOICES]
+    if novo_status not in status_validos:
+        return JsonResponse({"erro": "Status inválido."}, status=400)
+    antigo = sim.status
+    sim.status = novo_status
+    sim.save(update_fields=["status"])
+    registrar_log(request, "Moveu card no pipeline", "Simulation", pk,
+                  f"{sim.cliente}: {antigo} → {novo_status}")
+    return JsonResponse({"ok": True, "status": novo_status})
+
+
+# ── Metas do corretor ──────────────────────────────────────────────────────────
+
+@login_required
+def metas(request):
+    hoje = datetime.date.today()
+    meta_atual = MetaCorretor.objects.filter(
+        usuario=request.user, mes=hoje.month, ano=hoje.year
+    ).first()
+    total_sims_mes = Simulation.objects.filter(
+        usuario=request.user,
+        criado_em__month=hoje.month,
+        criado_em__year=hoje.year,
+    ).count()
+    valor_mes = Simulation.objects.filter(
+        usuario=request.user,
+        criado_em__month=hoje.month,
+        criado_em__year=hoje.year,
+    ).aggregate(total=Sum("valor_imovel"))["total"] or 0
+
+    progresso_sims = 0
+    progresso_valor = 0
+    if meta_atual:
+        if meta_atual.meta_simulacoes > 0:
+            progresso_sims = min(100, int(total_sims_mes / meta_atual.meta_simulacoes * 100))
+        if meta_atual.meta_valor > 0:
+            progresso_valor = min(100, int(float(valor_mes) / float(meta_atual.meta_valor) * 100))
+
+    historico = MetaCorretor.objects.filter(usuario=request.user).order_by("-ano", "-mes")[:12]
+    return render(request, "simulador/metas.html", {
+        "meta_atual": meta_atual,
+        "total_sims_mes": total_sims_mes,
+        "valor_mes": valor_mes,
+        "progresso_sims": progresso_sims,
+        "progresso_valor": progresso_valor,
+        "historico": historico,
+        "mes_atual": hoje.month,
+        "ano_atual": hoje.year,
+        "meses": ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"],
+    })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def meta_criar(request):
+    hoje = datetime.date.today()
+    if request.method == "POST":
+        try:
+            mes = int(request.POST.get("mes", hoje.month))
+            ano = int(request.POST.get("ano", hoje.year))
+            meta_simulacoes = int(request.POST.get("meta_simulacoes", 0))
+            val_raw = request.POST.get("meta_valor", "0")
+            meta_valor = float(str(val_raw).replace(".", "").replace(",", ".")) if val_raw else 0
+            if MetaCorretor.objects.filter(usuario=request.user, mes=mes, ano=ano).exists():
+                messages.error(request, f"Já existe uma meta para {mes:02d}/{ano}.")
+                return redirect("simulador:metas")
+            MetaCorretor.objects.create(
+                usuario=request.user, mes=mes, ano=ano,
+                meta_simulacoes=meta_simulacoes, meta_valor=meta_valor,
+            )
+            messages.success(request, "Meta criada com sucesso.")
+            return redirect("simulador:metas")
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    anos = list(range(hoje.year - 1, hoje.year + 3))
+    return render(request, "simulador/meta_form.html", {
+        "acao": "Nova",
+        "mes_padrao": hoje.month,
+        "ano_padrao": hoje.year,
+        "anos": anos,
+    })
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def meta_editar(request, pk):
+    meta = get_object_or_404(MetaCorretor, pk=pk, usuario=request.user)
+    if request.method == "POST":
+        try:
+            meta.meta_simulacoes = int(request.POST.get("meta_simulacoes", 0))
+            val_raw = request.POST.get("meta_valor", "0")
+            meta.meta_valor = float(str(val_raw).replace(".", "").replace(",", ".")) if val_raw else 0
+            meta.save()
+            messages.success(request, "Meta atualizada.")
+            return redirect("simulador:metas")
+        except (ValueError, TypeError) as e:
+            messages.error(request, f"Erro: {e}")
+    return render(request, "simulador/meta_form.html", {"acao": "Editar", "meta": meta})
+
+
+@login_required
+@require_POST
+def meta_excluir(request, pk):
+    meta = get_object_or_404(MetaCorretor, pk=pk, usuario=request.user)
+    meta.delete()
+    messages.success(request, "Meta excluída.")
+    return redirect("simulador:metas")
+
+
+# ── Log de auditoria ───────────────────────────────────────────────────────────
+
+@staff_required
+def logs_auditoria(request):
+    qs = AuditLog.objects.select_related("usuario").all()
+    filtro_usuario = request.GET.get("usuario", "").strip()
+    filtro_data = request.GET.get("data", "").strip()
+    filtro_acao = request.GET.get("acao", "").strip()
+    if filtro_usuario:
+        qs = qs.filter(usuario__username__icontains=filtro_usuario)
+    if filtro_data:
+        try:
+            dt = datetime.datetime.strptime(filtro_data, "%Y-%m-%d").date()
+            qs = qs.filter(criado_em__date=dt)
+        except ValueError:
+            pass
+    if filtro_acao:
+        qs = qs.filter(acao__icontains=filtro_acao)
+    paginator = Paginator(qs, 50)
+    page = paginator.get_page(request.GET.get("page"))
+    return render(request, "simulador/logs_auditoria.html", {
+        "page_obj": page,
+        "filtro_usuario": filtro_usuario,
+        "filtro_data": filtro_data,
+        "filtro_acao": filtro_acao,
+    })
+
+
+# ── Grupo C: Relatório por corretor ───────────────────────────────────────────
+
+@staff_required
+def relatorio_corretores(request):
+    usuarios = User.objects.filter(is_active=True).annotate(
+        total_sims=Count("simulacoes"),
+        total_aprovado=Count("simulacoes", filter=Q(simulacoes__status="aprovado")),
+        total_reprovado=Count("simulacoes", filter=Q(simulacoes__status="reprovado")),
+        valor_total=Sum("simulacoes__valor_imovel"),
+    ).order_by("-total_sims")
+    return render(request, "simulador/relatorio_corretores.html", {"usuarios": usuarios})
+
+
+# ── Grupo D: 2FA ───────────────────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def setup_2fa(request):
+    import pyotp
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    if request.method == "POST":
+        acao = request.POST.get("acao", "")
+
+        if acao == "ativar":
+            secret = request.POST.get("secret", "").strip()
+            codigo = request.POST.get("codigo", "").strip()
+            if not secret or not codigo:
+                messages.error(request, "Código inválido.")
+                return redirect("simulador:setup_2fa")
+            totp = pyotp.TOTP(secret)
+            if totp.verify(codigo, valid_window=1):
+                profile.totp_secret = secret
+                profile.totp_enabled = True
+                profile.save()
+                request.session["_2fa_done"] = True
+                registrar_log(request, "Ativou 2FA", "UserProfile", profile.pk)
+                messages.success(request, "Autenticação de dois fatores ativada com sucesso!")
+                return redirect("simulador:perfil")
+            else:
+                messages.error(request, "Código incorreto. Tente novamente.")
+                return redirect("simulador:setup_2fa")
+
+        elif acao == "desativar":
+            profile.totp_enabled = False
+            profile.totp_secret = ""
+            profile.save()
+            registrar_log(request, "Desativou 2FA", "UserProfile", profile.pk)
+            messages.success(request, "2FA desativado.")
+            return redirect("simulador:perfil")
+
+    novo_secret = pyotp.random_base32()
+    totp = pyotp.TOTP(novo_secret)
+    uri = totp.provisioning_uri(
+        name=request.user.email or request.user.username,
+        issuer_name="Imobiliária"
+    )
+    return render(request, "simulador/setup_2fa.html", {
+        "profile": profile,
+        "secret": novo_secret,
+        "uri": uri,
+    })
+
+
+def verificar_2fa(request):
+    import pyotp
+    if not request.user.is_authenticated:
+        return redirect("login")
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return redirect("simulador:simular")
+
+    if not profile.totp_enabled:
+        request.session["_2fa_done"] = True
+        return redirect("simulador:simular")
+
+    if request.session.get("_2fa_done"):
+        return redirect("simulador:simular")
+
+    if request.method == "POST":
+        codigo = request.POST.get("codigo", "").strip()
+        totp = pyotp.TOTP(profile.totp_secret)
+        if totp.verify(codigo, valid_window=1):
+            request.session["_2fa_done"] = True
+            next_url = request.GET.get("next") or "/"
+            return redirect(next_url)
+        else:
+            messages.error(request, "Código incorreto.")
+    return render(request, "simulador/verificar_2fa.html")

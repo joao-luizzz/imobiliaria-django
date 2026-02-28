@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block title %}Prazo por Idade{% endblock %}
+{% block page_title %}Prazo Máximo por Idade{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-calendar-check me-2"></i>Calcular Prazo</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Idade do Proponente (anos)</label>
+            <input type="number" class="form-control" name="idade" min="18" max="80" value="{{ resultado.idade|default:'' }}" required placeholder="Ex: 35">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Prazo Desejado (meses)</label>
+            <input type="number" class="form-control" name="prazo_desejado" min="12" max="420" value="{{ resultado.prazo_desejado|default:420 }}" required>
+          </div>
+          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-calculator me-2"></i>Calcular</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-info-circle me-2"></i>Regra do Banco Central</div>
+      <div class="card-body">
+        <p class="mb-1">O mutuário deve quitar o financiamento antes de completar <strong>80 anos e 6 meses</strong>.</p>
+        <small class="text-muted">Fórmula: prazo máx = (80 × 12 + 6) − (idade × 12)</small>
+      </div>
+    </div>
+
+    {% if resultado %}
+    <div class="card">
+      <div class="card-header"><i class="bi bi-check-circle me-2"></i>Resultado</div>
+      <div class="card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <div class="border rounded p-3 text-center">
+              <div class="text-muted small">Prazo Máximo</div>
+              <div class="fw-bold fs-3 text-primary">{{ resultado.prazo_max }}</div>
+              <div class="text-muted small">meses</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="border rounded p-3 text-center {% if resultado.foi_limitado %}bg-warning{% else %}bg-success text-white{% endif %}">
+              <div class="small">Prazo Efetivo</div>
+              <div class="fw-bold fs-3">{{ resultado.prazo_efetivo }}</div>
+              <div class="small">meses</div>
+            </div>
+          </div>
+        </div>
+        {% if resultado.foi_limitado %}
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          Prazo reduzido de {{ resultado.prazo_desejado }} para {{ resultado.prazo_efetivo }} meses (diferença: {{ resultado.diferenca }} meses).
+        </div>
+        {% else %}
+        <div class="alert alert-success">
+          <i class="bi bi-check-circle-fill me-2"></i>O prazo desejado é viável.
+        </div>
+        {% endif %}
+        <dl class="row mb-0">
+          <dt class="col-sm-6">Idade atual:</dt><dd class="col-sm-6">{{ resultado.idade }} anos</dd>
+          <dt class="col-sm-6">Prazo máximo:</dt><dd class="col-sm-6">{{ resultado.prazo_max }} meses</dd>
+          <dt class="col-sm-6">Idade ao final:</dt>
+          <dd class="col-sm-6">{{ resultado.idade_ao_final }} anos{% if resultado.meses_ao_final %} e {{ resultado.meses_ao_final }} meses{% endif %}</dd>
+        </dl>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

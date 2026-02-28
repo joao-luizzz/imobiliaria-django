@@ -1,0 +1,326 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}Minhas Metas — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-trophy-fill me-2"></i>Minhas Metas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .meta-card {
+        border: none;
+        border-radius: 14px;
+        box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+    }
+    .meta-card .card-header {
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        font-weight: 600;
+        border-radius: 14px 14px 0 0 !important;
+        padding: 14px 20px;
+    }
+
+    /* Progress section */
+    .progress-block { padding: 20px 24px; }
+    .progress-label {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        margin-bottom: 6px;
+    }
+    .progress-label .lbl { font-weight: 600; font-size: 0.88rem; }
+    .progress-label .nums { font-size: 0.8rem; color: #64748b; }
+    [data-bs-theme="dark"] .progress-label .nums { color: #94a3b8; }
+    .progress { border-radius: 8px; height: 18px; }
+    .progress-bar { border-radius: 8px; font-size: 0.72rem; font-weight: 700; transition: width 0.7s ease; }
+    .progress-pct {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: #1a3c5e;
+        line-height: 1;
+    }
+    [data-bs-theme="dark"] .progress-pct { color: #93c5fd; }
+    .progress-achieved { color: #059669; }
+
+    /* KPI row */
+    .kpi-row {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        padding: 16px 24px 0;
+    }
+    .kpi-item {
+        flex: 1;
+        min-width: 160px;
+        background: #f8fafc;
+        border-radius: 10px;
+        padding: 14px 18px;
+        text-align: center;
+    }
+    [data-bs-theme="dark"] .kpi-item { background: #1e293b; }
+    .kpi-item .val { font-size: 1.5rem; font-weight: 800; color: #1a3c5e; }
+    [data-bs-theme="dark"] .kpi-item .val { color: #93c5fd; }
+    .kpi-item .lbl { font-size: 0.75rem; color: #64748b; margin-top: 3px; }
+    [data-bs-theme="dark"] .kpi-item .lbl { color: #94a3b8; }
+
+    /* History table */
+    .table thead th {
+        background-color: #1a3c5e;
+        color: white;
+        font-weight: 500;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .table tbody td { vertical-align: middle; }
+    .table tbody tr:hover { background-color: #f0f7ff; }
+    [data-bs-theme="dark"] .table tbody tr:hover { background-color: rgba(59,130,246,0.12) !important; }
+
+    .btn-acao { padding: 3px 8px; font-size: 0.8rem; }
+
+    .month-badge {
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header with "Nova Meta" button -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <span class="text-muted small">
+            <i class="bi bi-calendar3 me-1"></i>
+            {% if meses and mes_atual %}
+                {{ meses|slice:mes_atual|last }} / {{ ano_atual }}
+            {% else %}
+                Mês atual
+            {% endif %}
+        </span>
+    </div>
+    <a href="{% url 'simulador:meta_criar' %}" class="btn btn-primary btn-sm rounded-pill">
+        <i class="bi bi-plus-circle me-1"></i>Nova Meta
+    </a>
+</div>
+
+{% if meta_atual %}
+<!-- Current goal progress card -->
+<div class="meta-card card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-trophy-fill me-2"></i>Meta do Mês Atual</span>
+        <div class="d-flex gap-2">
+            <a href="{% url 'simulador:meta_editar' meta_atual.pk %}"
+               class="btn btn-sm btn-light rounded-pill"
+               title="Editar meta">
+                <i class="bi bi-pencil me-1"></i>Editar
+            </a>
+            <form method="post"
+                  action="{% url 'simulador:meta_excluir' meta_atual.pk %}"
+                  class="d-inline"
+                  onsubmit="return confirm('Excluir a meta deste mês? Esta ação não pode ser desfeita.');">
+                {% csrf_token %}
+                <button type="submit"
+                        class="btn btn-sm btn-outline-light rounded-pill"
+                        title="Excluir meta">
+                    <i class="bi bi-trash me-1"></i>Excluir
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- KPI summary row -->
+    <div class="kpi-row">
+        <div class="kpi-item">
+            <div class="val">{{ total_sims_mes }}</div>
+            <div class="lbl"><i class="bi bi-file-earmark-text me-1"></i>Simulações realizadas</div>
+        </div>
+        <div class="kpi-item">
+            <div class="val">{{ meta_atual.meta_simulacoes }}</div>
+            <div class="lbl"><i class="bi bi-bullseye me-1"></i>Meta de simulações</div>
+        </div>
+        <div class="kpi-item">
+            <div class="val" style="font-size:1.1rem;">R$ {{ valor_mes|brl }}</div>
+            <div class="lbl"><i class="bi bi-cash-stack me-1"></i>Volume total</div>
+        </div>
+        <div class="kpi-item">
+            <div class="val" style="font-size:1.1rem;">R$ {{ meta_atual.meta_valor|brl }}</div>
+            <div class="lbl"><i class="bi bi-bullseye me-1"></i>Meta de volume</div>
+        </div>
+    </div>
+
+    <!-- Progress bars -->
+    <div class="progress-block">
+        <!-- Simulacoes progress -->
+        <div class="mb-4">
+            <div class="progress-label">
+                <span class="lbl">
+                    <i class="bi bi-file-earmark-text me-1 text-primary"></i>Simulações
+                </span>
+                <span class="nums">
+                    <strong>{{ total_sims_mes }}</strong> de <strong>{{ meta_atual.meta_simulacoes }}</strong>
+                    {% if progresso_sims >= 100 %}
+                    <span class="text-success ms-1"><i class="bi bi-check-circle-fill"></i> Meta atingida!</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="progress flex-fill" style="height:18px;" role="progressbar"
+                     aria-valuenow="{{ progresso_sims }}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar
+                                {% if progresso_sims >= 100 %}bg-success
+                                {% elif progresso_sims >= 60 %}bg-primary
+                                {% else %}bg-warning{% endif %}"
+                         style="width:{% if progresso_sims > 100 %}100{% else %}{{ progresso_sims }}{% endif %}%;">
+                        {% if progresso_sims >= 15 %}{{ progresso_sims }}%{% endif %}
+                    </div>
+                </div>
+                <div class="progress-pct {% if progresso_sims >= 100 %}progress-achieved{% endif %}">
+                    {{ progresso_sims }}%
+                </div>
+            </div>
+        </div>
+
+        <!-- Valor progress -->
+        <div class="mb-2">
+            <div class="progress-label">
+                <span class="lbl">
+                    <i class="bi bi-cash-stack me-1 text-success"></i>Volume Total (R$)
+                </span>
+                <span class="nums">
+                    <strong>R$ {{ valor_mes|brl }}</strong> de <strong>R$ {{ meta_atual.meta_valor|brl }}</strong>
+                    {% if progresso_valor >= 100 %}
+                    <span class="text-success ms-1"><i class="bi bi-check-circle-fill"></i> Meta atingida!</span>
+                    {% endif %}
+                </span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="progress flex-fill" style="height:18px;" role="progressbar"
+                     aria-valuenow="{{ progresso_valor }}" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-bar
+                                {% if progresso_valor >= 100 %}bg-success
+                                {% elif progresso_valor >= 60 %}bg-info
+                                {% else %}bg-warning{% endif %}"
+                         style="width:{% if progresso_valor > 100 %}100{% else %}{{ progresso_valor }}{% endif %}%;">
+                        {% if progresso_valor >= 15 %}{{ progresso_valor }}%{% endif %}
+                    </div>
+                </div>
+                <div class="progress-pct {% if progresso_valor >= 100 %}progress-achieved{% endif %}">
+                    {{ progresso_valor }}%
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<!-- No goal defined -->
+<div class="alert alert-info d-flex align-items-start gap-3" role="alert">
+    <i class="bi bi-info-circle-fill fs-4 mt-1 flex-shrink-0"></i>
+    <div>
+        <strong>Nenhuma meta definida para este mês.</strong>
+        <p class="mb-1 mt-1">
+            Defina metas mensais de simulações e volume para acompanhar seu desempenho.
+        </p>
+        <a href="{% url 'simulador:meta_criar' %}" class="btn btn-sm btn-primary mt-1">
+            <i class="bi bi-plus-circle me-1"></i>Criar Meta para este Mês
+        </a>
+    </div>
+</div>
+{% endif %}
+
+<!-- Historical goals table -->
+<div class="meta-card card">
+    <div class="card-header py-3"
+         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:14px 14px 0 0 !important;">
+        <i class="bi bi-clock-history me-2"></i>Histórico de Metas (últimos 12 meses)
+    </div>
+
+    {% if historico %}
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Mês / Ano</th>
+                        <th class="text-center">Meta Simulações</th>
+                        <th class="text-center">Realizado</th>
+                        <th class="text-center">% Sims</th>
+                        <th class="text-right">Meta Volume (R$)</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for meta in historico %}
+                    <tr>
+                        <td class="fw-semibold">
+                            {% if meses and meta.mes %}
+                                <span class="month-badge bg-light border">
+                                    {{ meses|slice:meta.mes|last }}
+                                </span>
+                                / {{ meta.ano }}
+                            {% else %}
+                                {{ meta.mes }}/{{ meta.ano }}
+                            {% endif %}
+                            {% if meta_atual and meta.pk == meta_atual.pk %}
+                                <span class="badge bg-primary ms-1" style="font-size:0.65rem;">Atual</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <span class="fw-semibold">{{ meta.meta_simulacoes }}</span>
+                        </td>
+                        <td class="text-center">
+                            {% if meta.total_realizado is not None %}
+                                <span class="fw-semibold
+                                    {% if meta.total_realizado >= meta.meta_simulacoes %}text-success{% endif %}">
+                                    {{ meta.total_realizado }}
+                                </span>
+                                {% if meta.total_realizado >= meta.meta_simulacoes %}
+                                    <i class="bi bi-check-circle-fill text-success ms-1" title="Meta atingida"></i>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted opacity-50">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if meta.total_realizado is not None and meta.meta_simulacoes %}
+                                {% with pct=meta.total_realizado|add:"0" %}
+                                <div class="progress" style="height:8px; width:80px; margin:auto;" title="{{ meta.total_realizado }} / {{ meta.meta_simulacoes }}">
+                                    <div class="progress-bar
+                                                {% if meta.total_realizado >= meta.meta_simulacoes %}bg-success
+                                                {% else %}bg-primary{% endif %}"
+                                         role="progressbar"
+                                         style="width:{% if meta.meta_simulacoes > 0 %}{% widthratio meta.total_realizado meta.meta_simulacoes 100 %}{% else %}0{% endif %}%">
+                                    </div>
+                                </div>
+                                {% endwith %}
+                            {% else %}
+                                <span class="text-muted opacity-50">—</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            R$ {{ meta.meta_valor|brl }}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'simulador:meta_editar' meta.pk %}"
+                               class="btn btn-outline-secondary btn-acao"
+                               title="Editar meta">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body text-center py-5 text-muted">
+        <i class="bi bi-inbox fs-1 d-block mb-2 opacity-25"></i>
+        <p class="fw-semibold mb-1">Nenhum histórico de metas disponível.</p>
+        <small>As metas criadas aparecerão aqui após o mês encerrar.</small>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

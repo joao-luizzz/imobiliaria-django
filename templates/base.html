@@ -221,6 +221,32 @@
             <a href="{% url 'simulador:refinanciamento' %}" class="nav-link {% if request.resolver_match.url_name == 'refinanciamento' %}active{% endif %}">
                 <i class="bi bi-arrow-repeat"></i> Refinanciamento
             </a>
+            <div class="nav-section-label">Análise</div>
+            <a href="{% url 'simulador:comparativo_bancos' %}" class="nav-link {% if request.resolver_match.url_name == 'comparativo_bancos' %}active{% endif %}">
+                <i class="bi bi-bank"></i> Comparar Bancos
+            </a>
+            <a href="{% url 'simulador:mcmv' %}" class="nav-link {% if request.resolver_match.url_name == 'mcmv' %}active{% endif %}">
+                <i class="bi bi-house-check-fill"></i> MCMV
+            </a>
+            <a href="{% url 'simulador:renda_minima' %}" class="nav-link {% if request.resolver_match.url_name == 'renda_minima' %}active{% endif %}">
+                <i class="bi bi-wallet2"></i> Renda Mínima
+            </a>
+            <a href="{% url 'simulador:prazo_idade' %}" class="nav-link {% if request.resolver_match.url_name == 'prazo_idade' %}active{% endif %}">
+                <i class="bi bi-calendar-check"></i> Prazo por Idade
+            </a>
+            <a href="{% url 'simulador:financiamento_ipca' %}" class="nav-link {% if request.resolver_match.url_name == 'financiamento_ipca' %}active{% endif %}">
+                <i class="bi bi-graph-up"></i> Financ. IPCA+
+            </a>
+            <div class="nav-section-label">Gestão</div>
+            <a href="{% url 'simulador:clientes_lista' %}" class="nav-link {% if 'cliente' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-person-lines-fill"></i> Clientes
+            </a>
+            <a href="{% url 'simulador:pipeline' %}" class="nav-link {% if request.resolver_match.url_name == 'pipeline' %}active{% endif %}">
+                <i class="bi bi-kanban-fill"></i> Pipeline
+            </a>
+            <a href="{% url 'simulador:metas' %}" class="nav-link {% if 'meta' in request.resolver_match.url_name %}active{% endif %}">
+                <i class="bi bi-trophy-fill"></i> Minhas Metas
+            </a>
             {% if request.user.is_staff %}
             <div class="nav-section-label">Administração</div>
             <a href="{% url 'simulador:usuarios_lista' %}" class="nav-link {% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">
@@ -228,6 +254,12 @@
             </a>
             <a href="{% url 'simulador:relatorio_pdf' %}" class="nav-link {% if request.resolver_match.url_name == 'relatorio_pdf' %}active{% endif %}">
                 <i class="bi bi-file-earmark-bar-graph-fill"></i> Relatório PDF
+            </a>
+            <a href="{% url 'simulador:relatorio_corretores' %}" class="nav-link {% if request.resolver_match.url_name == 'relatorio_corretores' %}active{% endif %}">
+                <i class="bi bi-bar-chart-fill"></i> Rel. Corretores
+            </a>
+            <a href="{% url 'simulador:logs_auditoria' %}" class="nav-link {% if request.resolver_match.url_name == 'logs_auditoria' %}active{% endif %}">
+                <i class="bi bi-shield-lock-fill"></i> Log de Auditoria
             </a>
             {% endif %}
             <div class="nav-section-label">Conta</div>
@@ -325,6 +357,45 @@
             localStorage.setItem('theme', isDark ? 'light' : 'dark');
             _applyThemeIcon();
         });
+
+        // ── Alerta de taxa (Selic/IPCA) ────────────────────────────────
+        (function alertaTaxa() {
+            const THRESHOLD = 0.25;
+            function mostrarAlertaTaxa(msg) {
+                const container = document.querySelector('.toast-container');
+                if (!container) return;
+                const div = document.createElement('div');
+                div.className = 'toast align-items-center text-bg-warning border-0 mb-2';
+                div.setAttribute('role', 'alert');
+                div.setAttribute('data-bs-autohide', 'true');
+                div.setAttribute('data-bs-delay', '8000');
+                div.innerHTML = `<div class="d-flex"><div class="toast-body fw-semibold"><i class="bi bi-bell-fill me-2"></i>${msg}</div><button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+                container.appendChild(div);
+                new bootstrap.Toast(div).show();
+            }
+            function verificarTaxas() {
+                fetch('/taxas-bcb/')
+                    .then(r => r.ok ? r.json() : null)
+                    .then(data => {
+                        if (!data) return;
+                        const selicAtual = parseFloat(data.selic);
+                        const ipcaAtual = parseFloat(data.ipca);
+                        const selicAnterior = parseFloat(localStorage.getItem('_selic_ref') || selicAtual);
+                        const ipcaAnterior = parseFloat(localStorage.getItem('_ipca_ref') || ipcaAtual);
+                        if (!isNaN(selicAtual) && !isNaN(selicAnterior) && Math.abs(selicAtual - selicAnterior) >= THRESHOLD) {
+                            mostrarAlertaTaxa(`Selic atualizada: ${selicAnterior.toFixed(2)}% → ${selicAtual.toFixed(2)}%`);
+                        }
+                        if (!isNaN(ipcaAtual) && !isNaN(ipcaAnterior) && Math.abs(ipcaAtual - ipcaAnterior) >= THRESHOLD) {
+                            mostrarAlertaTaxa(`IPCA atualizado: ${ipcaAnterior.toFixed(2)}% → ${ipcaAtual.toFixed(2)}%`);
+                        }
+                        if (!isNaN(selicAtual)) localStorage.setItem('_selic_ref', selicAtual);
+                        if (!isNaN(ipcaAtual)) localStorage.setItem('_ipca_ref', ipcaAtual);
+                    }).catch(() => {});
+            }
+            // Verificar após 10s do carregamento da página e a cada 5 minutos
+            setTimeout(verificarTaxas, 10000);
+            setInterval(verificarTaxas, 300000);
+        })();
     </script>
     {% block extra_js %}{% endblock %}
 </body>

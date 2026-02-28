@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}Pipeline de Propostas — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-kanban-fill me-2"></i>Pipeline de Propostas{% endblock %}
+
+{% block extra_css %}
+<style>
+    .pipeline-wrapper {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        overflow-x: auto;
+        padding-bottom: 16px;
+        min-height: calc(100vh - 220px);
+    }
+
+    /* Individual column */
+    .pipeline-col {
+        flex: 1;
+        min-width: 220px;
+        max-width: 320px;
+        display: flex;
+        flex-direction: column;
+        border-radius: 14px;
+        background: rgba(0,0,0,0.03);
+        border: 2px dashed transparent;
+        transition: border-color 0.2s, background 0.2s;
+    }
+    [data-bs-theme="dark"] .pipeline-col { background: rgba(255,255,255,0.04); }
+    .pipeline-col.drag-over {
+        border-color: #2e86c1;
+        background: rgba(46, 134, 193, 0.08);
+    }
+
+    .pipeline-col-header {
+        padding: 12px 14px 10px;
+        border-radius: 12px 12px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: white;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    [data-bs-theme="dark"] .pipeline-col-header { background: #1e293b; }
+    .pipeline-col-title {
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+    .col-count {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 20px;
+        color: white;
+    }
+
+    /* Drop zone body */
+    .pipeline-cards {
+        flex: 1;
+        padding: 10px 8px;
+        min-height: 120px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    /* Simulation card */
+    .sim-card {
+        background: white;
+        border-radius: 10px;
+        padding: 12px 14px;
+        box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+        cursor: grab;
+        user-select: none;
+        transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
+        border-left: 4px solid #e2e8f0;
+    }
+    [data-bs-theme="dark"] .sim-card { background: #1e293b; border-left-color: #334155; }
+    .sim-card:active { cursor: grabbing; }
+    .sim-card.dragging {
+        opacity: 0.45;
+        transform: scale(0.97);
+        box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+    }
+    .sim-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.13); }
+
+    /* Column border-left accent colors */
+    .col-novo      .sim-card { border-left-color: #6c757d; }
+    .col-em_analise .sim-card { border-left-color: #f59e0b; }
+    .col-aprovado  .sim-card { border-left-color: #10b981; }
+    .col-reprovado .sim-card { border-left-color: #ef4444; }
+
+    .sim-card .client-name { font-weight: 700; font-size: 0.88rem; color: #1a3c5e; margin-bottom: 4px; }
+    [data-bs-theme="dark"] .sim-card .client-name { color: #93c5fd; }
+    .sim-card .sim-value { font-size: 0.8rem; color: #059669; font-weight: 600; }
+    .sim-card .sim-meta { font-size: 0.73rem; color: #94a3b8; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+    /* Empty column placeholder */
+    .pipeline-empty {
+        text-align: center;
+        padding: 24px 12px;
+        color: #94a3b8;
+        font-size: 0.8rem;
+        pointer-events: none;
+    }
+    .pipeline-empty i { font-size: 1.8rem; display: block; margin-bottom: 6px; opacity: 0.4; }
+
+    /* Drag ghost placeholder */
+    .drag-placeholder {
+        border: 2px dashed #2e86c1;
+        border-radius: 10px;
+        height: 72px;
+        background: rgba(46,134,193,0.05);
+    }
+
+    /* Loading spinner overlay on card */
+    .sim-card.loading { opacity: 0.5; pointer-events: none; }
+
+    /* Scrollbar inside pipeline */
+    .pipeline-wrapper::-webkit-scrollbar { height: 6px; }
+    .pipeline-wrapper::-webkit-scrollbar-track { background: transparent; }
+    .pipeline-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Page header stats -->
+<div class="d-flex align-items-center gap-3 mb-4 flex-wrap">
+    {% for key, col in colunas.items %}
+    <div class="d-flex align-items-center gap-2">
+        <i class="bi {{ col.icone }} text-{{ col.cor }}"></i>
+        <span class="small fw-semibold">{{ col.label }}:</span>
+        <span class="badge bg-{{ col.cor }} rounded-pill" id="badge-count-{{ key }}">{{ col.cards|length }}</span>
+    </div>
+    {% endfor %}
+    <div class="ms-auto">
+        <a href="{% url 'simulador:historico' %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-clock-history me-1"></i>Ver histórico completo
+        </a>
+    </div>
+</div>
+
+<!-- Kanban board -->
+<div class="pipeline-wrapper">
+
+    {% for key, col in colunas.items %}
+    <div class="pipeline-col col-{{ key }}"
+         data-column="{{ key }}"
+         id="col-{{ key }}">
+
+        <!-- Column header -->
+        <div class="pipeline-col-header">
+            <div class="pipeline-col-title">
+                <i class="bi {{ col.icone }} text-{{ col.cor }}"></i>
+                {{ col.label }}
+            </div>
+            <span class="col-count bg-{{ col.cor }}" id="count-{{ key }}">{{ col.cards|length }}</span>
+        </div>
+
+        <!-- Drop zone -->
+        <div class="pipeline-cards" data-column="{{ key }}" id="cards-{{ key }}">
+
+            {% if col.cards %}
+                {% for sim in col.cards %}
+                <div class="sim-card"
+                     draggable="true"
+                     data-pk="{{ sim.pk }}"
+                     id="sim-{{ sim.pk }}">
+                    <div class="client-name">
+                        <i class="bi bi-person-fill me-1 opacity-50"></i>
+                        {{ sim.cliente }}
+                    </div>
+                    <div class="sim-value">
+                        <i class="bi bi-house me-1 opacity-75"></i>
+                        R$ {{ sim.valor_imovel|brl }}
+                    </div>
+                    <div class="sim-meta">
+                        <span><i class="bi bi-calendar3 me-1"></i>{{ sim.criado_em|date:"d/m/Y" }}</span>
+                        <span class="badge" style="font-size:0.68rem;
+                            {% if sim.sistema == 'SAC' %}background:#3b82f6;{% else %}background:#8b5cf6;{% endif %}
+                            color:white;">{{ sim.sistema }}</span>
+                        <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}"
+                           class="ms-auto text-muted"
+                           title="Ver detalhes"
+                           onclick="event.stopPropagation();">
+                            <i class="bi bi-box-arrow-up-right"></i>
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="pipeline-empty" id="empty-{{ key }}">
+                    <i class="bi bi-inbox"></i>
+                    Nenhuma proposta
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+    {% endfor %}
+
+</div>
+
+<!-- Toast for drag errors -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="pipelineToasts" style="z-index:1300;"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    // Read CSRF token from cookie
+    function getCsrf() {
+        return document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    }
+
+    // Show a small toast notification
+    function showToast(msg, type) {
+        var container = document.getElementById('pipelineToasts');
+        var div = document.createElement('div');
+        div.className = 'toast align-items-center text-bg-' + (type || 'danger') + ' border-0';
+        div.setAttribute('role', 'alert');
+        div.setAttribute('data-bs-autohide', 'true');
+        div.setAttribute('data-bs-delay', '3500');
+        div.innerHTML = '<div class="d-flex"><div class="toast-body fw-semibold">' + msg + '</div>' +
+            '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+        container.appendChild(div);
+        new bootstrap.Toast(div).show();
+        div.addEventListener('hidden.bs.toast', function () { div.remove(); });
+    }
+
+    // Update visible count badges
+    function updateCount(colKey) {
+        var cards = document.getElementById('cards-' + colKey).querySelectorAll('.sim-card');
+        var n = cards.length;
+        document.getElementById('count-' + colKey).textContent = n;
+        document.getElementById('badge-count-' + colKey).textContent = n;
+
+        // Show/hide empty state
+        var empty = document.getElementById('empty-' + colKey);
+        if (n === 0) {
+            if (!empty) {
+                var ph = document.createElement('div');
+                ph.className = 'pipeline-empty';
+                ph.id = 'empty-' + colKey;
+                ph.innerHTML = '<i class="bi bi-inbox"></i>Nenhuma proposta';
+                document.getElementById('cards-' + colKey).appendChild(ph);
+            }
+        } else {
+            if (empty) empty.remove();
+        }
+    }
+
+    var dragged = null;
+    var sourceCol = null;
+
+    // ── Drag events on cards ──
+    document.addEventListener('dragstart', function (e) {
+        var card = e.target.closest('.sim-card');
+        if (!card) return;
+        dragged = card;
+        sourceCol = card.closest('[data-column]').dataset.column;
+        setTimeout(function () { card.classList.add('dragging'); }, 0);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', card.dataset.pk);
+    });
+
+    document.addEventListener('dragend', function (e) {
+        var card = e.target.closest('.sim-card');
+        if (card) card.classList.remove('dragging');
+        // Remove any leftover placeholders
+        document.querySelectorAll('.drag-placeholder').forEach(function (ph) { ph.remove(); });
+    });
+
+    // ── Drop zone events on card containers ──
+    document.querySelectorAll('.pipeline-cards').forEach(function (zone) {
+        zone.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            zone.closest('.pipeline-col').classList.add('drag-over');
+
+            // Placeholder insertion
+            var placeholder = document.querySelector('.drag-placeholder');
+            if (!placeholder) {
+                placeholder = document.createElement('div');
+                placeholder.className = 'drag-placeholder';
+            }
+            var afterEl = getDragAfterElement(zone, e.clientY);
+            if (afterEl == null) {
+                zone.appendChild(placeholder);
+            } else {
+                zone.insertBefore(placeholder, afterEl);
+            }
+        });
+
+        zone.addEventListener('dragleave', function (e) {
+            // Only remove highlight if leaving the whole column
+            if (!zone.contains(e.relatedTarget)) {
+                zone.closest('.pipeline-col').classList.remove('drag-over');
+                var placeholder = document.querySelector('.drag-placeholder');
+                if (placeholder && placeholder.parentNode === zone) placeholder.remove();
+            }
+        });
+
+        zone.addEventListener('drop', function (e) {
+            e.preventDefault();
+            zone.closest('.pipeline-col').classList.remove('drag-over');
+            var placeholder = document.querySelector('.drag-placeholder');
+            if (placeholder) placeholder.remove();
+
+            if (!dragged) return;
+
+            var targetCol = zone.dataset.column;
+            var pk = dragged.dataset.pk;
+
+            if (targetCol === sourceCol) return;
+
+            // Optimistically move the card
+            var afterEl = getDragAfterElement(zone, e.clientY);
+            if (afterEl == null) {
+                zone.appendChild(dragged);
+            } else {
+                zone.insertBefore(dragged, afterEl);
+            }
+            updateCount(sourceCol);
+            updateCount(targetCol);
+
+            var prevCol = sourceCol;
+            sourceCol = targetCol;
+
+            // Mark card as loading
+            dragged.classList.add('loading');
+            var cardRef = dragged;
+
+            // POST to backend
+            fetch('/pipeline/' + pk + '/mover/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrf(),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: JSON.stringify({ status: targetCol })
+            })
+            .then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                return res.json();
+            })
+            .then(function (data) {
+                cardRef.classList.remove('loading');
+                if (!data.ok && !data.success) {
+                    throw new Error(data.error || 'Erro ao mover');
+                }
+            })
+            .catch(function (err) {
+                // Revert move
+                cardRef.classList.remove('loading');
+                var origZone = document.getElementById('cards-' + prevCol);
+                origZone.appendChild(cardRef);
+                sourceCol = prevCol;
+                updateCount(prevCol);
+                updateCount(targetCol);
+                showToast('<i class="bi bi-exclamation-circle me-1"></i>Erro ao mover proposta: ' + err.message, 'danger');
+            });
+        });
+    });
+
+    // Helper: find element after cursor Y position
+    function getDragAfterElement(container, y) {
+        var draggables = Array.from(container.querySelectorAll('.sim-card:not(.dragging)'));
+        return draggables.reduce(function (closest, child) {
+            var box = child.getBoundingClientRect();
+            var offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            }
+            return closest;
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Configurar 2FA{% endblock %}
+{% block page_title %}Autenticação de Dois Fatores{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    {% if profile.totp_enabled %}
+    <div class="card mb-4 border-success">
+      <div class="card-header bg-success text-white"><i class="bi bi-shield-check me-2"></i>2FA Ativado</div>
+      <div class="card-body">
+        <p>A autenticação de dois fatores está <strong>ativa</strong> na sua conta.</p>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="desativar">
+          <button type="submit" class="btn btn-danger"
+                  onclick="return confirm('Desativar 2FA? Sua conta ficará menos protegida.')">
+            <i class="bi bi-shield-x me-2"></i>Desativar 2FA
+          </button>
+          <a href="{% url 'simulador:perfil' %}" class="btn btn-outline-secondary ms-2">Voltar</a>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-shield-lock me-2"></i>Ativar Autenticação 2FA</div>
+      <div class="card-body">
+        <ol class="mb-3">
+          <li>Instale um autenticador TOTP (Google Authenticator, Authy, etc.)</li>
+          <li>Escaneie o QR code ou insira a chave manual abaixo</li>
+          <li>Digite o código gerado para confirmar a ativação</li>
+        </ol>
+
+        <div class="mb-3 text-center">
+          <div class="border rounded p-3 bg-light d-inline-block">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data={{ uri|urlencode }}"
+                 alt="QR Code 2FA" width="180" height="180">
+          </div>
+        </div>
+
+        <div class="alert alert-secondary">
+          <strong>Chave manual:</strong>
+          <code class="user-select-all ms-2">{{ secret }}</code>
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="acao" value="ativar">
+          <input type="hidden" name="secret" value="{{ secret }}">
+          <div class="mb-3">
+            <label class="form-label">Código de Verificação</label>
+            <input type="text" class="form-control form-control-lg text-center"
+                   name="codigo" maxlength="6" pattern="[0-9]{6}"
+                   placeholder="000000" autofocus autocomplete="off" required>
+            <div class="form-text">Digite o código de 6 dígitos do seu autenticador.</div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success">
+              <i class="bi bi-shield-check me-2"></i>Ativar 2FA
+            </button>
+            <a href="{% url 'simulador:perfil' %}" class="btn btn-outline-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

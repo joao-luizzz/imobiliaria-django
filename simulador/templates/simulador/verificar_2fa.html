@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Verificação 2FA{% endblock %}
+{% block page_title %}Verificação em Dois Fatores{% endblock %}
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-sm-10 col-md-6 col-lg-4">
+    <div class="card">
+      <div class="card-header"><i class="bi bi-shield-lock-fill me-2"></i>Confirmar Identidade</div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          Abra seu aplicativo autenticador e insira o código gerado para sua conta.
+        </p>
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label">Código de Verificação</label>
+            <input type="text" class="form-control form-control-lg text-center fw-bold"
+                   name="codigo" maxlength="6" pattern="[0-9]{6}" placeholder="000000"
+                   autofocus autocomplete="one-time-code" required inputmode="numeric">
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-unlock-fill me-2"></i>Verificar
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}Log de Auditoria{% endblock %}
+{% block page_title %}Log de Auditoria{% endblock %}
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header"><i class="bi bi-funnel me-2"></i>Filtros</div>
+  <div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-md-3">
+        <label class="form-label">Usuário</label>
+        <input type="text" class="form-control form-control-sm" name="usuario" value="{{ filtro_usuario }}" placeholder="username">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Data</label>
+        <input type="date" class="form-control form-control-sm" name="data" value="{{ filtro_data }}">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Ação</label>
+        <input type="text" class="form-control form-control-sm" name="acao" value="{{ filtro_acao }}" placeholder="Ex: Criou simulação">
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search me-1"></i>Filtrar</button>
+        <a href="{% url 'simulador:logs_auditoria' %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-shield-lock-fill me-2"></i>Registros de Auditoria</span>
+    <span class="badge bg-secondary">{{ page_obj.paginator.count }} registro(s)</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Data/Hora</th>
+            <th>Usuário</th>
+            <th>Ação</th>
+            <th>Objeto</th>
+            <th>Descrição</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in page_obj %}
+          <tr>
+            <td class="text-nowrap small">{{ log.criado_em|date:"d/m/Y H:i:s" }}</td>
+            <td>{{ log.usuario.username|default:"—" }}</td>
+            <td><span class="badge bg-primary">{{ log.acao }}</span></td>
+            <td class="small text-muted">{{ log.objeto_tipo }}{% if log.objeto_id %} #{{ log.objeto_id }}{% endif %}</td>
+            <td class="small">{{ log.descricao }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">Nenhum registro encontrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if page_obj.has_other_pages %}
+  <div class="card-footer">
+    <nav>
+      <ul class="pagination pagination-sm mb-0 justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}">«</a></li>
+        {% endif %}
+        <li class="page-item active"><a class="page-link" href="#">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</a></li>
+        {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}">»</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

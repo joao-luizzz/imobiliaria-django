@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}{{ cliente.nome }} — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-person-circle me-2"></i>{{ cliente.nome }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .info-card {
+        border: none;
+        border-radius: 14px;
+        box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+    }
+    .info-card .card-header {
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        font-weight: 600;
+        border-radius: 14px 14px 0 0 !important;
+        padding: 14px 20px;
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 16px 24px;
+        padding: 20px;
+    }
+    .info-grid dt {
+        font-size: 0.73rem;
+        text-transform: uppercase;
+        letter-spacing: 0.9px;
+        color: #64748b;
+        font-weight: 600;
+        margin-bottom: 3px;
+    }
+    .info-grid dd {
+        font-size: 0.95rem;
+        color: #1a3c5e;
+        font-weight: 500;
+        margin: 0;
+        word-break: break-word;
+    }
+    .info-grid .obs-block {
+        grid-column: 1 / -1;
+    }
+    [data-bs-theme="dark"] .info-grid dt { color: #94a3b8; }
+    [data-bs-theme="dark"] .info-grid dd { color: #93c5fd; }
+
+    .table thead th {
+        background-color: #1a3c5e;
+        color: white;
+        font-weight: 500;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+    .table tbody td { vertical-align: middle; }
+    .table tbody tr:hover { background-color: #f0f7ff; }
+    [data-bs-theme="dark"] .table tbody tr:hover { background-color: rgba(59,130,246,0.12) !important; }
+
+    .badge-novo       { background-color: #6c757d; }
+    .badge-em_analise { background-color: #f59e0b; }
+    .badge-aprovado   { background-color: #10b981; }
+    .badge-reprovado  { background-color: #ef4444; }
+    .badge-sac        { background-color: #3b82f6; }
+    .badge-price      { background-color: #8b5cf6; }
+
+    .empty-state { text-align: center; padding: 50px 20px; color: #94a3b8; }
+    .empty-state i { font-size: 2.8rem; margin-bottom: 10px; display: block; }
+    .btn-acao { padding: 3px 8px; font-size: 0.8rem; }
+
+    .avatar-lg {
+        width: 56px; height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Back link + action buttons -->
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <a href="{% url 'simulador:clientes_lista' %}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>Voltar à lista
+    </a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'simulador:cliente_editar' cliente.pk %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-pencil me-1"></i>Editar
+        </a>
+        <form method="post"
+              action="{% url 'simulador:cliente_excluir' cliente.pk %}"
+              class="d-inline"
+              onsubmit="return confirm('Excluir o cliente \'{{ cliente.nome|escapejs }}\'? Todas as simulações vinculadas serão desvinculadas. Esta ação não pode ser desfeita.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash me-1"></i>Excluir
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- Client info card -->
+<div class="info-card card mb-4">
+    <div class="card-header d-flex align-items-center gap-3">
+        <div class="avatar-lg">{{ cliente.nome|slice:":2"|upper }}</div>
+        <div>
+            <div class="fw-bold fs-5">{{ cliente.nome }}</div>
+            {% if cliente.email %}
+            <div class="opacity-75 small">{{ cliente.email }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <dl class="info-grid">
+        <div>
+            <dt><i class="bi bi-envelope me-1"></i>E-mail</dt>
+            <dd>
+                {% if cliente.email %}
+                    <a href="mailto:{{ cliente.email }}" class="text-decoration-none">{{ cliente.email }}</a>
+                {% else %}
+                    <span class="text-muted opacity-50">Não informado</span>
+                {% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt><i class="bi bi-telephone me-1"></i>Telefone</dt>
+            <dd>
+                {% if cliente.telefone %}
+                    <a href="tel:{{ cliente.telefone }}" class="text-decoration-none">{{ cliente.telefone }}</a>
+                {% else %}
+                    <span class="text-muted opacity-50">Não informado</span>
+                {% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt><i class="bi bi-credit-card me-1"></i>CPF</dt>
+            <dd>
+                {% if cliente.cpf %}
+                    {{ cliente.cpf }}
+                {% else %}
+                    <span class="text-muted opacity-50">Não informado</span>
+                {% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt><i class="bi bi-cash-stack me-1"></i>Renda Mensal</dt>
+            <dd>
+                {% if cliente.renda_mensal %}
+                    R$ {{ cliente.renda_mensal|brl }}
+                {% else %}
+                    <span class="text-muted opacity-50">Não informado</span>
+                {% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt><i class="bi bi-calendar-plus me-1"></i>Cadastrado em</dt>
+            <dd>{{ cliente.criado_em|date:"d/m/Y \à\s H:i" }}</dd>
+        </div>
+        {% if cliente.observacoes %}
+        <div class="obs-block">
+            <dt><i class="bi bi-chat-text me-1"></i>Observações</dt>
+            <dd class="mt-1" style="white-space: pre-line; font-weight:400;">{{ cliente.observacoes }}</dd>
+        </div>
+        {% endif %}
+    </dl>
+</div>
+
+<!-- Simulations section -->
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="mb-0 fw-bold text-muted">
+        <i class="bi bi-file-earmark-text me-1"></i>Simulações vinculadas
+        <span class="badge bg-secondary ms-1">{{ simulacoes|length }}</span>
+    </h6>
+    <a href="{% url 'simulador:simular' %}?cliente={{ cliente.pk }}" class="btn btn-sm btn-primary rounded-pill">
+        <i class="bi bi-plus-circle me-1"></i>Nova Simulação
+    </a>
+</div>
+
+<div class="card" style="border:none; border-radius:12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
+    <div class="card-header py-3"
+         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:12px 12px 0 0;">
+        <i class="bi bi-table me-2"></i>Histórico de Simulações
+    </div>
+
+    {% if simulacoes %}
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Data</th>
+                        <th>Valor do Imóvel</th>
+                        <th>Sistema</th>
+                        <th>Status</th>
+                        <th class="text-center">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sim in simulacoes %}
+                    <tr>
+                        <td class="text-muted small">{{ sim.pk }}</td>
+                        <td class="small text-nowrap">{{ sim.criado_em|date:"d/m/Y H:i" }}</td>
+                        <td class="fw-semibold">R$ {{ sim.valor_imovel|brl }}</td>
+                        <td>
+                            <span class="badge badge-{{ sim.sistema|lower }}">{{ sim.sistema }}</span>
+                        </td>
+                        <td>
+                            {% if sim.status == 'novo' %}
+                                <span class="badge badge-novo">{{ sim.get_status_display }}</span>
+                            {% elif sim.status == 'em_analise' %}
+                                <span class="badge badge-em_analise">{{ sim.get_status_display }}</span>
+                            {% elif sim.status == 'aprovado' %}
+                                <span class="badge badge-aprovado">{{ sim.get_status_display }}</span>
+                            {% elif sim.status == 'reprovado' %}
+                                <span class="badge badge-reprovado">{{ sim.get_status_display }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ sim.get_status_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}"
+                               class="btn btn-outline-primary btn-acao"
+                               title="Ver detalhes">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card-body empty-state">
+        <i class="bi bi-file-earmark-x"></i>
+        <p class="fw-semibold mb-1">Nenhuma simulação para este cliente.</p>
+        <small>Crie uma nova simulação vinculando-a a este cliente.</small>
+        <div class="mt-3">
+            <a href="{% url 'simulador:simular' %}?cliente={{ cliente.pk }}" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus-circle me-1"></i>Nova Simulação
+            </a>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
