@@ -4,16 +4,40 @@ Sistema web desenvolvido em Django para corretores de imóveis simularem financi
 
 ## Funcionalidades
 
+### Principal
 | Módulo | Descrição |
 |---|---|
-| **Simulador** | Calcula parcelas SAC ou PRICE com tabela completa e salva o histórico |
-| **Dashboard** | KPIs gerais, gráfico de simulações por mês e mapa de calor |
-| **Histórico** | Lista com filtros por cliente/status/sistema, paginação e exportação |
-| **Detalhe** | Tabela completa de parcelas, exportação PDF e Excel por simulação |
-| **Comparativo** | Comparação visual SAC × PRICE com gráfico de saldo devedor (Chart.js) |
+| **Simulador** | SAC ou PRICE com MIP/DFI, gráfico de saldo devedor e salva no histórico |
+| **Dashboard** | KPIs gerais, gráfico de simulações por dia, distribuição por status e sistema |
+| **Histórico** | Filtros por cliente, status, sistema, tag e período; paginação e exportação |
+| **Detalhe** | Tabela completa, comparativo SAC × PRICE, exportação PDF/Excel, link compartilhável e WhatsApp |
 | **Oráculo** | Calcula o poder de compra com base em renda, entrada e comprometimento |
-| **Perfil** | Edição de dados pessoais e troca de senha |
-| **Usuários** | Gestão de corretores pelo administrador (criar, editar, ativar/desativar) |
+
+### Ferramentas
+| Módulo | Descrição |
+|---|---|
+| **Comparativo** | Comparação visual SAC × PRICE com gráfico de saldo devedor |
+| **Amortização Extra** | Impacto de aportes mensais no prazo e nos juros totais |
+| **Portabilidade** | Compara taxa atual vs nova e aponta se vale portar |
+| **FGTS** | Usa saldo FGTS para reduzir parcela ou prazo |
+| **ITBI / Cartório** | Estima ITBI, cartório, avaliação e certidões |
+| **IPCA / TR** | Simula impacto da correção monetária sobre o saldo devedor |
+| **CET** | Custo Efetivo Total via Newton-Raphson (inclui tarifas e seguros) |
+| **Consórcio vs Financiamento** | Compara total pago e parcelas entre as duas modalidades |
+| **Refinanciamento** | Compara condições atuais × novas com prazo ajustável |
+
+### Administração (staff only)
+| Módulo | Descrição |
+|---|---|
+| **Usuários** | Criar, editar, ativar/desativar corretores |
+| **Relatório PDF** | Relatório gerencial com KPIs, status e últimas simulações |
+
+### API REST
+| Endpoint | Método | Descrição |
+|---|---|---|
+| `/api/simular/` | POST | Retorna tabela de parcelas em JSON |
+| `/api/oraculo/` | POST | Retorna poder de compra em JSON |
+| `/taxas-bcb/` | GET | Selic, IPCA e CDI em tempo real (BCB) |
 
 ## Tecnologias
 
@@ -28,7 +52,7 @@ Sistema web desenvolvido em Django para corretores de imóveis simularem financi
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU_USUARIO/imobiliaria-django.git
+git clone https://github.com/joao-luizzz/imobiliaria-django.git
 cd imobiliaria-django
 
 # 2. Crie e ative o ambiente virtual
@@ -69,7 +93,7 @@ Acesse em `http://127.0.0.1:8000/`
 python manage.py test simulador
 ```
 
-43 testes cobrindo cálculos SAC/PRICE, model e views.
+60 testes cobrindo cálculos SAC/PRICE, model, views e todos os módulos de ferramentas.
 
 ## Deploy (produção)
 
@@ -92,20 +116,26 @@ imobiliaria-django/
 │   ├── settings.py         # Desenvolvimento
 │   └── settings_prod.py    # Produção
 ├── simulador/              # App principal
+│   ├── backends.py         # EmailBackend (login por e-mail)
 │   ├── calculos.py         # Funções SAC e PRICE
-│   ├── models.py           # Model Simulation
-│   ├── views.py            # Todas as views
+│   ├── models.py           # Model Simulation (tags, share_token, favorito...)
+│   ├── views.py            # Todas as views + API REST + BCB
 │   ├── urls.py             # Rotas do app
-│   ├── tests.py            # Suite de testes
+│   ├── tests.py            # Suite de testes (60 testes)
 │   └── templates/simulador/
-├── templates/              # base.html, login, 404, 500
-├── static/css/             # CSS customizado
+├── templates/              # base.html (dark mode, sidebar), login, 404, 500
+├── static/
+│   ├── css/                # CSS customizado
+│   └── img/favicon.svg
 ├── Procfile                # Comando Gunicorn
 └── .env.example            # Referência de variáveis
 ```
 
 ## Perfis de acesso
 
-- **Administrador** (`is_staff=True`): acesso completo, vê todas as simulações e gerencia usuários
+- **Administrador** (`is_staff=True`): acesso completo, vê todas as simulações, gerencia usuários e gera relatório gerencial PDF
 - **Corretor**: acessa apenas suas próprias simulações
 
+## Login
+
+Suporta autenticação por **username** ou **e-mail**.
