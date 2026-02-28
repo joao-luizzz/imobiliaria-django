@@ -1,3 +1,4 @@
+import json
 from decimal import Decimal
 from django.test import TestCase
 from django.urls import reverse
@@ -277,3 +278,147 @@ class ViewsTest(TestCase):
         self.client.post(reverse('simulador:usuario_toggle_ativo', args=[self.staff.pk]))
         self.staff.refresh_from_db()
         self.assertTrue(self.staff.is_active)
+
+
+class ViewsNovosTest(TestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user('corretor2', password='senha123')
+        self.staff = User.objects.create_user('admin2', password='senha123', is_staff=True)
+
+    # FGTS
+    def test_fgts_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:fgts')).status_code, 200)
+
+    def test_fgts_post_modalidade_parcela(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:fgts'), {
+            'valor_financiado': '200000', 'taxa_juros': '0.75',
+            'meses': '240', 'sistema': 'SAC',
+            'saldo_fgts': '30000', 'modalidade': 'parcela',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+
+    def test_fgts_post_modalidade_prazo(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:fgts'), {
+            'valor_financiado': '200000', 'taxa_juros': '0.75',
+            'meses': '240', 'sistema': 'PRICE',
+            'saldo_fgts': '30000', 'modalidade': 'prazo',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+
+    # ITBI
+    def test_itbi_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:itbi')).status_code, 200)
+
+    def test_itbi_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:itbi'), {
+            'valor_imovel': '300000', 'aliquota_itbi': '2.0',
+            'cartorio_percent': '1.0', 'avaliacao': '3000', 'certidoes': '500',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+        self.assertIn('total_taxas', resp.context['resultado'])
+
+    # IPCA/TR
+    def test_ipca_tr_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:ipca_tr')).status_code, 200)
+
+    def test_ipca_tr_post_sac(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:ipca_tr'), {
+            'valor_financiado': '200000', 'taxa_juros': '0.75',
+            'meses': '120', 'sistema': 'SAC', 'taxa_correcao': '0.3',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+
+    # CET
+    def test_cet_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:cet')).status_code, 200)
+
+    def test_cet_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:cet'), {
+            'valor_financiado': '200000', 'taxa_juros': '0.75',
+            'meses': '240', 'sistema': 'SAC',
+            'tarifa_emissao': '1500', 'tarifa_avaliacao': '3000',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+        self.assertIn('cet_anual', resp.context['resultado'])
+
+    # Consórcio
+    def test_consorcio_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:consorcio')).status_code, 200)
+
+    def test_consorcio_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:consorcio'), {
+            'valor_bem': '300000', 'meses': '180',
+            'taxa_admin_pct': '18', 'fundo_reserva_pct': '3',
+            'taxa_juros_financ': '0.75',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+        self.assertIn('total_consorcio', resp.context['resultado'])
+
+    # Refinanciamento
+    def test_refinanciamento_get(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:refinanciamento')).status_code, 200)
+
+    def test_refinanciamento_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(reverse('simulador:refinanciamento'), {
+            'saldo_devedor': '150000', 'taxa_atual': '0.85',
+            'prazo_restante': '200', 'taxa_nova': '0.70',
+            'prazo_novo': '200', 'sistema': 'PRICE',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+        self.assertIn('economia_mensal', resp.context['resultado'])
+
+    # Relatório PDF (staff only)
+    def test_relatorio_pdf_requer_staff(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:relatorio_pdf')).status_code, 302)
+
+    def test_relatorio_pdf_staff_ok(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse('simulador:relatorio_pdf'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp['Content-Type'], 'application/pdf')
+
+    # API REST
+    def test_api_simular_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            reverse('simulador:api_simular'),
+            data=json.dumps({'valor_financiado': 200000, 'taxa_juros': 0.75, 'prazo_meses': 120, 'sistema': 'SAC'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn('parcelas', data)
+        self.assertEqual(len(data['parcelas']), 120)
+
+    def test_api_oraculo_post(self):
+        self.client.force_login(self.user)
+        resp = self.client.post(
+            reverse('simulador:api_oraculo'),
+            data=json.dumps({'renda': 10000, 'entrada': 50000, 'prazo_anos': 30, 'taxa_anual': 9.99}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = json.loads(resp.content)
+        self.assertIn('poder_compra', data)

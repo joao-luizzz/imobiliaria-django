@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}Refinanciamento — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-arrow-repeat me-2"></i>Refinanciamento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+
+    /* Veredicto */
+    .veredicto-refin {
+        border-radius: 14px;
+        padding: 20px 24px;
+        text-align: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+        margin-bottom: 24px;
+    }
+    .veredicto-refin.vale    { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+    .veredicto-refin.avaliar { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+    .veredicto-refin .economia-badges {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 12px;
+    }
+    .veredicto-refin .badge-eco {
+        background: rgba(255, 255, 255, 0.25);
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        backdrop-filter: blur(4px);
+    }
+    .veredicto-refin .badge-eco span { font-size: 1rem; font-weight: 800; display: block; margin-top: 2px; }
+
+    /* Comparison table */
+    .cond-table {
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 24px;
+    }
+    .cond-table-header {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+    }
+    .cond-table-header .col-lbl  { background: #f1f5f9; padding: 11px 16px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
+    .cond-table-header .col-atual { background: linear-gradient(135deg, #ef4444, #dc2626); padding: 11px 16px; font-size: 0.8rem; font-weight: 700; color: white; text-align: center; }
+    .cond-table-header .col-nova  { background: linear-gradient(135deg, #10b981, #059669); padding: 11px 16px; font-size: 0.8rem; font-weight: 700; color: white; text-align: center; }
+    .cond-table-row {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr;
+        border-top: 1px solid #e2e8f0;
+    }
+    .cond-table-row:nth-child(even) { background: #f8fafc; }
+    .cond-table-row:nth-child(odd)  { background: white; }
+    .cond-table-row .col-lbl   { padding: 10px 16px; font-size: 0.82rem; color: #64748b; display: flex; align-items: center; }
+    .cond-table-row .col-atual { padding: 10px 16px; font-size: 0.88rem; font-weight: 700; color: #dc2626; text-align: center; display: flex; align-items: center; justify-content: center; }
+    .cond-table-row .col-nova  { padding: 10px 16px; font-size: 0.88rem; font-weight: 700; color: #059669; text-align: center; display: flex; align-items: center; justify-content: center; }
+
+    /* KPI cards */
+    .kpi-refin { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .kpi-refin-item {
+        background: white;
+        border-radius: 10px;
+        padding: 16px 12px;
+        text-align: center;
+        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+    }
+    .kpi-refin-item .num { font-size: 1.15rem; font-weight: 700; color: #1a3c5e; }
+    .kpi-refin-item .lbl { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+
+    /* Dark mode overrides */
+    [data-bs-theme="dark"] .cond-table { border-color: #334155; }
+    [data-bs-theme="dark"] .cond-table-header .col-lbl  { background: #1e293b; color: #94a3b8; }
+    [data-bs-theme="dark"] .cond-table-row              { border-top-color: #334155; }
+    [data-bs-theme="dark"] .cond-table-row:nth-child(even) { background: #1e293b; }
+    [data-bs-theme="dark"] .cond-table-row:nth-child(odd)  { background: #0f172a; }
+    [data-bs-theme="dark"] .cond-table-row .col-lbl    { color: #94a3b8; }
+    [data-bs-theme="dark"] .cond-table-row .col-atual  { color: #fca5a5; }
+    [data-bs-theme="dark"] .cond-table-row .col-nova   { color: #6ee7b7; }
+    [data-bs-theme="dark"] .kpi-refin-item             { background: #1e293b; }
+    [data-bs-theme="dark"] .kpi-refin-item .num        { color: #93c5fd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- ── Formulário ─────────────────────────────────────────── -->
+    <div class="col-12 col-lg-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-sliders me-2"></i>Dados do Refinanciamento
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-bank me-1"></i>Saldo Devedor Atual (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="saldo_devedor" class="form-control"
+                                       value="{{ request.POST.saldo_devedor }}"
+                                       min="1" step="0.01" placeholder="180000" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-danger"><i class="bi bi-percent me-1"></i>Taxa Atual % a.m.</label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_atual" class="form-control"
+                                       value="{{ request.POST.taxa_atual }}"
+                                       min="0.01" step="0.01" placeholder="0.99" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Prazo Restante (meses)</label>
+                            <div class="input-group">
+                                <input type="number" name="prazo_restante" class="form-control"
+                                       value="{{ request.POST.prazo_restante }}"
+                                       min="1" step="1" placeholder="240" required>
+                                <span class="input-group-text">meses</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label text-success"><i class="bi bi-percent me-1"></i>Nova Taxa % a.m.</label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_nova" class="form-control"
+                                       value="{{ request.POST.taxa_nova }}"
+                                       min="0.01" step="0.01" placeholder="0.75" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-calendar-check me-1"></i>Novo Prazo (meses)</label>
+                            <div class="input-group">
+                                <input type="number" name="prazo_novo" class="form-control"
+                                       value="{{ request.POST.prazo_novo }}"
+                                       min="1" step="1" placeholder="240">
+                                <span class="input-group-text">meses</span>
+                            </div>
+                            <div class="form-text text-muted">
+                                <i class="bi bi-info-circle me-1"></i>Deixe em branco para manter o prazo atual
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-toggles me-1"></i>Sistema de Amortização</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="radioSAC" value="SAC"
+                                        {% if request.POST.sistema == 'SAC' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-primary" for="radioSAC">SAC</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" id="radioPRICE" value="PRICE"
+                                        {% if request.POST.sistema != 'SAC' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-success" for="radioPRICE">PRICE</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill"
+                                    style="background: linear-gradient(135deg, #1a3c5e, #2e86c1); border: none;">
+                                <i class="bi bi-arrow-repeat me-2"></i>Calcular Refinanciamento
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Resultados ─────────────────────────────────────────── -->
+    <div class="col-12 col-lg-8">
+        {% if resultado %}
+
+        <!-- Veredicto -->
+        <div class="veredicto-refin {% if resultado.vale_refin %}vale{% else %}avaliar{% endif %}">
+            {% if resultado.vale_refin %}
+                <div><i class="bi bi-check-circle-fill me-2"></i>Vale a pena refinanciar!</div>
+            {% else %}
+                <div><i class="bi bi-exclamation-triangle-fill me-2"></i>Avalie com cuidado</div>
+            {% endif %}
+            <div class="economia-badges">
+                <div class="badge-eco">
+                    Economia Mensal
+                    <span>R$ {{ resultado.economia_mensal|brl }}</span>
+                </div>
+                <div class="badge-eco">
+                    Economia Total
+                    <span>R$ {{ resultado.economia_total|brl }}</span>
+                </div>
+                <div class="badge-eco">
+                    % do Custo Economizado
+                    <span>{{ resultado.economia_pct }}%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Condições Atuais vs Novas Condições -->
+        <div class="cond-table">
+            <div class="cond-table-header">
+                <div class="col-lbl"></div>
+                <div class="col-atual"><i class="bi bi-file-earmark-text me-1"></i>Condições Atuais</div>
+                <div class="col-nova"><i class="bi bi-file-earmark-check me-1"></i>Novas Condições</div>
+            </div>
+            <div class="cond-table-row">
+                <div class="col-lbl"><i class="bi bi-percent me-2 opacity-50"></i>Taxa (% a.m.)</div>
+                <div class="col-atual">{{ resultado.taxa_atual }}%</div>
+                <div class="col-nova">{{ resultado.taxa_nova }}%</div>
+            </div>
+            <div class="cond-table-row">
+                <div class="col-lbl"><i class="bi bi-calendar3 me-2 opacity-50"></i>Prazo (meses)</div>
+                <div class="col-atual">{{ resultado.prazo_restante }}</div>
+                <div class="col-nova">{{ resultado.prazo_novo }}</div>
+            </div>
+            <div class="cond-table-row">
+                <div class="col-lbl"><i class="bi bi-receipt me-2 opacity-50"></i>1ª Parcela</div>
+                <div class="col-atual">R$ {{ resultado.parcela_atual|brl }}</div>
+                <div class="col-nova">R$ {{ resultado.parcela_nova|brl }}</div>
+            </div>
+            <div class="cond-table-row">
+                <div class="col-lbl"><i class="bi bi-cash-stack me-2 opacity-50"></i>Total Pago</div>
+                <div class="col-atual">R$ {{ resultado.total_atual|brl }}</div>
+                <div class="col-nova">R$ {{ resultado.total_novo|brl }}</div>
+            </div>
+            <div class="cond-table-row">
+                <div class="col-lbl"><i class="bi bi-graph-up me-2 opacity-50"></i>Total em Juros</div>
+                <div class="col-atual">R$ {{ resultado.juros_atual|brl }}</div>
+                <div class="col-nova">R$ {{ resultado.juros_novo|brl }}</div>
+            </div>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="kpi-refin">
+            <div class="kpi-refin-item">
+                <div class="num">R$ {{ resultado.economia_mensal|brl }}</div>
+                <div class="lbl">Economia por mês</div>
+            </div>
+            <div class="kpi-refin-item">
+                <div class="num">R$ {{ resultado.economia_total|brl }}</div>
+                <div class="lbl">Economia total</div>
+            </div>
+            <div class="kpi-refin-item">
+                <div class="num">R$ {{ resultado.economia_juros|brl }}</div>
+                <div class="lbl">Economia em juros</div>
+            </div>
+            <div class="kpi-refin-item">
+                <div class="num">{{ resultado.economia_pct }}%</div>
+                <div class="lbl">Do custo total economizado</div>
+            </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="card mb-4">
+            <div class="card-header py-3">
+                <i class="bi bi-graph-down me-2"></i>Evolução do Saldo Devedor
+            </div>
+            <div class="card-body p-3">
+                <canvas id="refinChart" height="90"></canvas>
+            </div>
+        </div>
+
+        <!-- Alerta informativo -->
+        <div class="alert alert-info d-flex gap-3 align-items-start" role="alert">
+            <i class="bi bi-info-circle-fill fs-5 mt-1 flex-shrink-0"></i>
+            <div>
+                <strong>Refinanciamento vs. Portabilidade</strong><br>
+                <span class="fw-semibold">Refinanciamento</span> é a renegociação do contrato existente
+                <em>com o mesmo banco</em> — você obtém novas condições (taxa e/ou prazo) sem trocar de instituição.
+                Já a <span class="fw-semibold">Portabilidade</span> transfere a dívida para <em>outro banco</em>,
+                que quita o saldo devedor com o banco original e celebra um novo contrato.
+                Em ambos os casos compare o CET (Custo Efetivo Total) antes de assinar.
+            </div>
+        </div>
+
+        {% else %}
+
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+                <i class="bi bi-arrow-repeat display-4 text-primary opacity-50 mb-3"></i>
+                <h5 class="fw-semibold">Simule o refinanciamento do seu imóvel</h5>
+                <p class="text-muted mb-0">
+                    Informe o saldo devedor atual, a taxa que você paga hoje e as novas condições propostas
+                    pelo banco para descobrir se vale renegociar o contrato.
+                </p>
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% if resultado %}
+<script>
+new Chart(document.getElementById('refinChart'), {
+    type: 'line',
+    data: {
+        labels: {{ resultado.chart_labels|safe }},
+        datasets: [
+            {
+                label: 'Condições Atuais ({{ resultado.taxa_atual }}% a.m.)',
+                data: {{ resultado.chart_atual|safe }},
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239,68,68,0.08)',
+                borderWidth: 2.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.3,
+            },
+            {
+                label: 'Nova Condição ({{ resultado.taxa_nova }}% a.m.)',
+                data: {{ resultado.chart_nova|safe }},
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16,185,129,0.08)',
+                borderWidth: 2.5,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+                }
+            }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Mês' } },
+            y: {
+                title: { display: true, text: 'Saldo Devedor (R$)' },
+                ticks: { callback: v => 'R$ ' + (v / 1000).toFixed(0) + 'k' }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

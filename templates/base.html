@@ -6,6 +6,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Imobiliária{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'css/custom.css' %}">
@@ -47,6 +48,14 @@
             color: white;
         }
         .sidebar-nav .nav-link i { font-size: 1.1rem; width: 20px; text-align: center; }
+        .nav-section-label {
+            padding: 10px 20px 4px;
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: rgba(255,255,255,0.35);
+            font-weight: 600;
+        }
         .sidebar-footer {
             padding: 16px 20px;
             border-top: 1px solid rgba(255,255,255,0.1);
@@ -83,10 +92,12 @@
         /* Messages */
         .alert { border-radius: 10px; }
 
-        @media (max-width: 768px) {
-            .sidebar { width: 100%; min-height: auto; position: relative; }
+        /* Mobile: hide sidebar margin, offcanvas handles the panel */
+        @media (max-width: 991.98px) {
             .main-content { margin-left: 0; }
         }
+        /* Keep sidebar gradient when Bootstrap offcanvas takes over on mobile */
+        .sidebar.offcanvas-lg { --bs-offcanvas-bg: #1a3c5e; }
 
         /* ── Dark Mode overrides ── */
         [data-bs-theme="dark"] body { background-color: #0f172a; }
@@ -154,14 +165,19 @@
 </head>
 <body>
 
-    <div class="sidebar">
-        <div class="sidebar-brand">
-            <i class="bi bi-house-door-fill text-white fs-4 mb-2 d-block"></i>
-            <h5>Imobiliária</h5>
-            <small>Sistema de Gestão</small>
+    <div class="sidebar offcanvas-lg offcanvas-start" id="sidebarMain" tabindex="-1">
+        <div class="sidebar-brand d-flex align-items-start justify-content-between">
+            <div>
+                <i class="bi bi-house-door-fill text-white fs-4 mb-2 d-block"></i>
+                <h5>Imobiliária</h5>
+                <small>Sistema de Gestão</small>
+            </div>
+            <button type="button" class="btn-close btn-close-white d-lg-none mt-1"
+                    data-bs-dismiss="offcanvas" data-bs-target="#sidebarMain"></button>
         </div>
 
         <nav class="sidebar-nav">
+            <div class="nav-section-label">Principal</div>
             <a href="{% url 'simulador:simular' %}" class="nav-link {% if request.resolver_match.url_name == 'simular' %}active{% endif %}">
                 <i class="bi bi-calculator-fill"></i> Simulador
             </a>
@@ -174,14 +190,44 @@
             <a href="{% url 'simulador:oraculo' %}" class="nav-link {% if request.resolver_match.url_name == 'oraculo' %}active{% endif %}">
                 <i class="bi bi-magic"></i> Oráculo
             </a>
+            <div class="nav-section-label">Ferramentas</div>
             <a href="{% url 'simulador:comparativo' %}" class="nav-link {% if request.resolver_match.url_name == 'comparativo' %}active{% endif %}">
                 <i class="bi bi-bar-chart-steps"></i> Comparativo
             </a>
+            <a href="{% url 'simulador:amortizacao_extra' %}" class="nav-link {% if request.resolver_match.url_name == 'amortizacao_extra' %}active{% endif %}">
+                <i class="bi bi-lightning-charge-fill"></i> Amortização Extra
+            </a>
+            <a href="{% url 'simulador:portabilidade' %}" class="nav-link {% if request.resolver_match.url_name == 'portabilidade' %}active{% endif %}">
+                <i class="bi bi-arrow-left-right"></i> Portabilidade
+            </a>
+            <a href="{% url 'simulador:fgts' %}" class="nav-link {% if request.resolver_match.url_name == 'fgts' %}active{% endif %}">
+                <i class="bi bi-piggy-bank-fill"></i> FGTS
+            </a>
+            <a href="{% url 'simulador:itbi' %}" class="nav-link {% if request.resolver_match.url_name == 'itbi' %}active{% endif %}">
+                <i class="bi bi-receipt-cutoff"></i> ITBI / Cartório
+            </a>
+            <a href="{% url 'simulador:ipca_tr' %}" class="nav-link {% if request.resolver_match.url_name == 'ipca_tr' %}active{% endif %}">
+                <i class="bi bi-graph-up-arrow"></i> IPCA / TR
+            </a>
+            <a href="{% url 'simulador:cet' %}" class="nav-link {% if request.resolver_match.url_name == 'cet' %}active{% endif %}">
+                <i class="bi bi-percent"></i> CET
+            </a>
+            <a href="{% url 'simulador:consorcio' %}" class="nav-link {% if request.resolver_match.url_name == 'consorcio' %}active{% endif %}">
+                <i class="bi bi-people-fill"></i> Consórcio vs Financiamento
+            </a>
+            <a href="{% url 'simulador:refinanciamento' %}" class="nav-link {% if request.resolver_match.url_name == 'refinanciamento' %}active{% endif %}">
+                <i class="bi bi-arrow-repeat"></i> Refinanciamento
+            </a>
             {% if request.user.is_staff %}
+            <div class="nav-section-label">Administração</div>
             <a href="{% url 'simulador:usuarios_lista' %}" class="nav-link {% if 'usuario' in request.resolver_match.url_name %}active{% endif %}">
-                <i class="bi bi-people-fill"></i> Usuários
+                <i class="bi bi-person-fill-gear"></i> Usuários
+            </a>
+            <a href="{% url 'simulador:relatorio_pdf' %}" class="nav-link {% if request.resolver_match.url_name == 'relatorio_pdf' %}active{% endif %}">
+                <i class="bi bi-file-earmark-bar-graph-fill"></i> Relatório PDF
             </a>
             {% endif %}
+            <div class="nav-section-label">Conta</div>
             <a href="{% url 'simulador:perfil' %}" class="nav-link {% if request.resolver_match.url_name == 'perfil' %}active{% endif %}">
                 <i class="bi bi-person-circle"></i> Meu Perfil
             </a>
@@ -203,7 +249,14 @@
 
     <div class="main-content">
         <div class="top-bar">
-            <span class="page-title">{% block page_title %}{% endblock %}</span>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary d-lg-none"
+                        data-bs-toggle="offcanvas" data-bs-target="#sidebarMain"
+                        aria-controls="sidebarMain" style="width:34px;height:34px;padding:0;">
+                    <i class="bi bi-list fs-5"></i>
+                </button>
+                <span class="page-title">{% block page_title %}{% endblock %}</span>
+            </div>
             <div class="d-flex align-items-center gap-3">
                 <button id="btnTheme" class="btn btn-sm btn-outline-secondary rounded-circle"
                         style="width:34px;height:34px;padding:0;" title="Alternar tema claro/escuro">

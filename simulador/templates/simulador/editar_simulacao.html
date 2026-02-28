@@ -102,6 +102,40 @@
                                       placeholder="Observações sobre o cliente ou a negociação…">{{ sim.observacoes }}</textarea>
                         </div>
 
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-tags me-1"></i>Tags <small class="text-muted fw-normal">(opcional, separadas por vírgula)</small></label>
+                            <input type="text" name="tags" class="form-control"
+                                   value="{{ sim.tags }}"
+                                   placeholder="banco xxx, urgente, cliente vip...">
+                            <div class="form-text">Ex: banco itaú, urgente, cliente vip</div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-shield-check me-1"></i>MIP — Morte e Invalidez (% a.m.)
+                                <small class="text-muted fw-normal">(opcional)</small>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="mip_mensal" class="form-control"
+                                       value="{{ sim.mip_mensal }}" min="0" step="0.001" placeholder="0.000">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">Típico: 0.036% a.m. sobre saldo devedor</div>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">
+                                <i class="bi bi-shield-check me-1"></i>DFI — Danos ao Imóvel (% a.m.)
+                                <small class="text-muted fw-normal">(opcional)</small>
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="dfi_mensal" class="form-control"
+                                       value="{{ sim.dfi_mensal }}" min="0" step="0.0001" placeholder="0.0000">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">Típico: 0.0125% a.m. sobre valor do imóvel</div>
+                        </div>
+
                         <div class="col-12 d-flex justify-content-end gap-2 mt-2">
                             <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="btn btn-outline-secondary">
                                 Cancelar

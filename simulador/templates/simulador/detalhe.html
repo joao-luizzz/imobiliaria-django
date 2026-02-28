@@ -53,6 +53,12 @@
                 title="Gerar link compartilhável">
             <i class="bi bi-share me-1"></i>Compartilhar
         </button>
+        <button type="button" id="btnWhatsApp"
+                class="btn btn-sm rounded-pill"
+                style="background:#25D366;color:white;border:none;"
+                title="Compartilhar via WhatsApp">
+            <i class="bi bi-whatsapp me-1"></i>WhatsApp
+        </button>
         <a href="{% url 'simulador:exportar_pdf' sim.pk %}"
            class="btn btn-sm btn-outline-danger rounded-pill">
             <i class="bi bi-file-earmark-pdf me-1"></i>Exportar PDF
@@ -143,6 +149,66 @@
 </div>
 {% endif %}
 
+{% if sim.tags_lista %}
+<div class="d-flex flex-wrap gap-2 mb-4">
+    {% for tag in sim.tags_lista %}
+    <span class="badge rounded-pill" style="background:#e0f2fe;color:#0369a1;font-size:0.82rem;padding:6px 12px;">
+        <i class="bi bi-tag me-1"></i>{{ tag }}
+    </span>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- SAC vs PRICE comparativo -->
+<div class="card mb-4">
+    <div class="card-header py-3">
+        <i class="bi bi-bar-chart-steps me-2"></i>Comparativo SAC vs PRICE — mesmo financiamento
+    </div>
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="p-3 rounded-3 text-center" style="background:#eff6ff;border:1px solid #bfdbfe;">
+                    <div class="fw-bold text-primary mb-2">Sistema SAC</div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">1ª Parcela</div>
+                            <div class="fw-semibold">R$ {{ primeira_sac|brl }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">Total Pago</div>
+                            <div class="fw-semibold">R$ {{ total_sac|brl }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">Total Juros</div>
+                            <div class="fw-semibold text-danger">R$ {{ juros_sac|brl }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="p-3 rounded-3 text-center" style="background:#f5f3ff;border:1px solid #ddd6fe;">
+                    <div class="fw-bold text-purple mb-2" style="color:#7c3aed;">Sistema PRICE</div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">1ª Parcela</div>
+                            <div class="fw-semibold">R$ {{ primeira_price|brl }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">Total Pago</div>
+                            <div class="fw-semibold">R$ {{ total_price|brl }}</div>
+                        </div>
+                        <div class="col-4">
+                            <div style="font-size:.75rem;color:#64748b;">Total Juros</div>
+                            <div class="fw-semibold text-danger">R$ {{ juros_price|brl }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <canvas id="chartSacPrice" height="80"></canvas>
+    </div>
+</div>
+
 <!-- Tabela de parcelas -->
 <div class="card">
     <div class="card-header py-3">
@@ -184,7 +250,9 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script>
+// Compartilhar link
 document.getElementById('btnCompartilhar').addEventListener('click', function () {
     const btn = this;
     fetch("{% url 'simulador:gerar_link' sim.pk %}", {
@@ -204,6 +272,60 @@ document.getElementById('btnCompartilhar').addEventListener('click', function ()
         });
     })
     .catch(() => alert('Erro ao gerar o link.'));
+});
+
+// WhatsApp share
+document.getElementById('btnWhatsApp').addEventListener('click', function () {
+    fetch("{% url 'simulador:gerar_link' sim.pk %}", {
+        method: 'POST',
+        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+    })
+    .then(r => r.json())
+    .then(data => {
+        const text = encodeURIComponent(
+            'Simulação de financiamento — {{ sim.cliente }}\n' +
+            'Imóvel: R$ {{ sim.valor_imovel|brl }}\n' +
+            'Sistema: {{ sim.sistema }} | Prazo: {{ sim.prazo_meses }} meses\n' +
+            'Acesse: ' + data.link
+        );
+        window.open('https://wa.me/?text=' + text, '_blank');
+    })
+    .catch(() => alert('Erro ao gerar o link.'));
+});
+
+// Gráfico SAC vs PRICE
+new Chart(document.getElementById('chartSacPrice'), {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels|safe }},
+        datasets: [
+            {
+                label: 'Saldo SAC',
+                data: {{ chart_saldo_sac|safe }},
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59,130,246,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            },
+            {
+                label: 'Saldo PRICE',
+                data: {{ chart_saldo_price|safe }},
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139,92,246,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: { callbacks: { label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits:2}) } }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Parcela' } },
+            y: { ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
+        }
+    }
 });
 </script>
 {% endblock %}

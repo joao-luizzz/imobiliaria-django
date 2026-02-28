@@ -85,6 +85,11 @@ LOGOUT_REDIRECT_URL = 'login'
 from django.contrib.messages import constants as message_constants
 MESSAGE_TAGS = {message_constants.ERROR: 'danger'}
 
+AUTHENTICATION_BACKENDS = [
+    'simulador.backends.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
 # Logging
 LOGGING = {
     'version': 1,

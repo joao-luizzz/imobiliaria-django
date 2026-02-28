@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}Consórcio vs Financiamento — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-people-fill me-2"></i>Consórcio vs Financiamento{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .veredicto {
+        border-radius: 14px; padding: 20px 24px; text-align: center;
+        font-weight: 700; font-size: 1.1rem; margin-bottom: 24px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    .veredicto.consorcio-vence {
+        background: linear-gradient(135deg, #059669, #10b981);
+        color: white;
+    }
+    .veredicto.financ-vence {
+        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        color: white;
+    }
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .comp-card {
+        border-radius: 12px; padding: 22px 18px;
+        text-align: center; border: 2px solid transparent;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    }
+    .comp-card.consorcio-card {
+        background: rgba(139,92,246,0.07);
+        border-color: #c4b5fd;
+    }
+    .comp-card.financ-card {
+        background: rgba(59,130,246,0.07);
+        border-color: #93c5fd;
+    }
+    .comp-card .titulo {
+        font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.6px; margin-bottom: 14px;
+    }
+    .comp-card.consorcio-card .titulo { color: #7c3aed; }
+    .comp-card.financ-card   .titulo { color: #1d4ed8; }
+    .comp-card .parcela-label { font-size: 0.75rem; color: #64748b; margin-bottom: 2px; }
+    .comp-card .parcela-valor { font-size: 1.7rem; font-weight: 800; margin-bottom: 10px; }
+    .comp-card.consorcio-card .parcela-valor { color: #7c3aed; }
+    .comp-card.financ-card   .parcela-valor { color: #1d4ed8; }
+    .comp-card .meta-row {
+        display: flex; justify-content: space-between;
+        font-size: 0.82rem; padding: 5px 0;
+        border-top: 1px solid rgba(0,0,0,0.07);
+    }
+    .comp-card .meta-lbl { color: #64748b; }
+    .comp-card .meta-val { font-weight: 600; }
+    .comp-card.consorcio-card .meta-val { color: #6d28d9; }
+    .comp-card.financ-card   .meta-val { color: #1e40af; }
+    .diferenca-box {
+        background: #f8fafc; border-radius: 12px; padding: 18px 22px;
+        margin-bottom: 24px; display: flex; align-items: center;
+        justify-content: space-between; gap: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+        border: 1px solid #e2e8f0;
+    }
+    .diferenca-box .dif-label { font-size: 0.9rem; color: #64748b; font-weight: 500; }
+    .diferenca-box .dif-value { font-size: 1.4rem; font-weight: 800; color: #1a3c5e; }
+    [data-bs-theme="dark"] .form-label { color: #93c5fd; }
+    [data-bs-theme="dark"] .comp-card.consorcio-card { background: rgba(139,92,246,0.12); border-color: #7c3aed; }
+    [data-bs-theme="dark"] .comp-card.financ-card   { background: rgba(59,130,246,0.12);  border-color: #3b82f6; }
+    [data-bs-theme="dark"] .comp-card .meta-row { border-top-color: rgba(255,255,255,0.08); }
+    [data-bs-theme="dark"] .comp-card .meta-lbl { color: #94a3b8; }
+    [data-bs-theme="dark"] .diferenca-box { background: #1e293b; border-color: #334155; }
+    [data-bs-theme="dark"] .diferenca-box .dif-label { color: #94a3b8; }
+    [data-bs-theme="dark"] .diferenca-box .dif-value { color: #93c5fd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Formulário -->
+    <div class="col-12 col-lg-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-sliders me-2"></i>Parâmetros da Comparação
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-house me-1"></i>Valor do Bem (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="valor_bem" class="form-control"
+                                       value="{{ request.POST.valor_bem }}"
+                                       min="1" step="0.01" placeholder="400000" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Prazo em Meses</label>
+                            <div class="input-group">
+                                <input type="number" name="meses" class="form-control"
+                                       value="{{ request.POST.meses }}"
+                                       min="1" step="1" placeholder="180" required>
+                                <span class="input-group-text">meses</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <hr class="my-1">
+                            <p class="form-text fw-semibold mb-2" style="color:#7c3aed;">
+                                <i class="bi bi-people-fill me-1"></i>Consórcio
+                            </p>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                <i class="bi bi-percent me-1"></i>Taxa de Administração Total (%)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_admin_pct" class="form-control"
+                                       value="{{ request.POST.taxa_admin_pct|default:'18.0' }}"
+                                       min="0" step="0.1" placeholder="18.0">
+                                <span class="input-group-text">%</span>
+                            </div>
+                            <div class="form-text">
+                                Percentual total sobre o crédito ao longo do contrato. Típico: 18–20%.
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                <i class="bi bi-shield me-1"></i>Fundo de Reserva (%)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="fundo_reserva_pct" class="form-control"
+                                       value="{{ request.POST.fundo_reserva_pct|default:'3.0' }}"
+                                       min="0" step="0.1" placeholder="3.0">
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <hr class="my-1">
+                            <p class="form-text fw-semibold mb-2" style="color:#1d4ed8;">
+                                <i class="bi bi-bank me-1"></i>Financiamento (PRICE)
+                            </p>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label">
+                                <i class="bi bi-percent me-1"></i>Taxa de Juros (% a.m.)
+                            </label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_juros_financ" class="form-control"
+                                       value="{{ request.POST.taxa_juros_financ }}"
+                                       min="0.01" step="0.01" placeholder="0.85" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill"
+                                    style="background:linear-gradient(135deg,#1a3c5e,#2e86c1);border:none;">
+                                <i class="bi bi-people-fill me-2"></i>Comparar
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="col-12 col-lg-8">
+        {% if resultado %}
+
+        <!-- Veredicto -->
+        <div class="veredicto {% if resultado.consorcio_mais_barato %}consorcio-vence{% else %}financ-vence{% endif %}">
+            {% if resultado.consorcio_mais_barato %}
+                <i class="bi bi-check-circle-fill me-2"></i>Consórcio é mais barato no total
+            {% else %}
+                <i class="bi bi-bank me-2"></i>Financiamento tem custo total menor
+            {% endif %}
+        </div>
+
+        <!-- Comparação lado a lado -->
+        <div class="comparison-grid">
+
+            <!-- Consórcio -->
+            <div class="comp-card consorcio-card">
+                <div class="titulo"><i class="bi bi-people-fill me-1"></i>Consórcio</div>
+                <div class="parcela-label">Parcela mensal</div>
+                <div class="parcela-valor">R$ {{ resultado.parcela_consorcio|brl }}</div>
+                <div class="meta-row">
+                    <span class="meta-lbl">Total pago</span>
+                    <span class="meta-val">R$ {{ resultado.total_consorcio|brl }}</span>
+                </div>
+                <div class="meta-row">
+                    <span class="meta-lbl">Custo extra</span>
+                    <span class="meta-val">R$ {{ resultado.custo_extra_consorcio|brl }}</span>
+                </div>
+            </div>
+
+            <!-- Financiamento -->
+            <div class="comp-card financ-card">
+                <div class="titulo"><i class="bi bi-bank me-1"></i>Financiamento PRICE</div>
+                <div class="parcela-label">1ª Parcela</div>
+                <div class="parcela-valor">R$ {{ resultado.parcela_financ_1|brl }}</div>
+                <div class="meta-row">
+                    <span class="meta-lbl">Total pago</span>
+                    <span class="meta-val">R$ {{ resultado.total_financ|brl }}</span>
+                </div>
+                <div class="meta-row">
+                    <span class="meta-lbl">Juros totais</span>
+                    <span class="meta-val">R$ {{ resultado.juros_financ|brl }}</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Diferença Total -->
+        <div class="diferenca-box">
+            <div>
+                <div class="dif-label"><i class="bi bi-arrow-left-right me-2"></i>Diferença total entre as modalidades</div>
+            </div>
+            <div class="dif-value">R$ {{ resultado.diferenca_total|brl }}</div>
+        </div>
+
+        <!-- Nota sobre consórcio -->
+        <div class="alert alert-warning py-2 mb-3" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Atenção:</strong> No consórcio, a contemplação acontece por sorteio ou lance — você pode esperar
+            meses ou anos para ter acesso ao bem. O financiamento libera o imóvel imediatamente após a aprovação.
+            Avalie liquidez e urgência antes de decidir.
+        </div>
+
+        <!-- Gráfico de parcelas ao longo do tempo -->
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-graph-up me-2"></i>Evolução das Parcelas ao Longo do Tempo
+            </div>
+            <div class="card-body p-3">
+                <canvas id="consorcioChart" height="90"></canvas>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+                <i class="bi bi-people display-4 text-primary opacity-50 mb-3"></i>
+                <h5 class="fw-semibold">Compare consórcio e financiamento</h5>
+                <p class="text-muted mb-0">
+                    Informe o valor do bem, o prazo e as taxas para descobrir qual modalidade tem
+                    o menor custo total e ver a evolução das parcelas mês a mês.
+                </p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% if resultado %}
+<script>
+new Chart(document.getElementById('consorcioChart'), {
+    type: 'line',
+    data: {
+        labels: {{ resultado.chart_labels|safe }},
+        datasets: [
+            {
+                label: 'Consórcio',
+                data: {{ resultado.chart_consorcio|safe }},
+                borderColor: '#8b5cf6',
+                backgroundColor: 'rgba(139,92,246,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            },
+            {
+                label: 'Financiamento PRICE',
+                data: {{ resultado.chart_financiamento|safe }},
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59,130,246,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+                callbacks: {
+                    label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits: 2})
+                }
+            }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Mês' } },
+            y: {
+                ticks: {
+                    callback: v => 'R$ ' + v.toLocaleString('pt-BR', {minimumFractionDigits: 0})
+                }
+            }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% load simulador_extras %}
+
+{% block title %}FGTS — Imobiliária{% endblock %}
+{% block page_title %}<i class="bi bi-piggy-bank-fill me-2"></i>Simulador de FGTS{% endblock %}
+
+{% block extra_css %}
+<style>
+    .form-label { font-weight: 500; color: #1a3c5e; }
+    .resultado-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .lado { border-radius: 12px; padding: 20px; text-align: center; border: 2px solid transparent; }
+    .lado.sem  { background: rgba(239,68,68,0.08);  border-color: #fca5a5; }
+    .lado.com  { background: rgba(16,185,129,0.08); border-color: #6ee7b7; }
+    .lado .titulo { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .lado.sem .titulo { color: #dc2626; }
+    .lado.com .titulo { color: #059669; }
+    .lado .valor { font-size: 1.8rem; font-weight: 800; }
+    .lado.sem .valor { color: #dc2626; }
+    .lado.com .valor { color: #059669; }
+    .lado .sub { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+    .destaque-fgts {
+        background: linear-gradient(135deg,#10b981,#059669);
+        color: white; border-radius: 14px; padding: 20px 24px;
+        text-align: center; font-weight: 700; font-size: 1.1rem; margin-bottom: 24px;
+    }
+    .kpi-fgts { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 24px; }
+    .kpi-fgts-item { background: white; border-radius: 10px; padding: 16px 12px; text-align: center; box-shadow: 0 1px 6px rgba(0,0,0,0.06); }
+    .kpi-fgts-item .num { font-size: 1.15rem; font-weight: 700; color: #1a3c5e; }
+    .kpi-fgts-item .lbl { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+    [data-bs-theme="dark"] .lado.sem { background: rgba(239,68,68,0.12); }
+    [data-bs-theme="dark"] .lado.com { background: rgba(16,185,129,0.12); }
+    [data-bs-theme="dark"] .kpi-fgts-item { background: #1e293b; }
+    [data-bs-theme="dark"] .kpi-fgts-item .num { color: #93c5fd; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Formulário -->
+    <div class="col-12 col-lg-4">
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-sliders me-2"></i>Dados do Financiamento
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    <div class="row g-3">
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-currency-dollar me-1"></i>Valor Financiado (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="valor_financiado" class="form-control"
+                                       value="{{ request.POST.valor_financiado }}"
+                                       min="1" step="0.01" placeholder="300000" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-piggy-bank-fill me-1 text-success"></i>Saldo FGTS disponível (R$)</label>
+                            <div class="input-group">
+                                <span class="input-group-text">R$</span>
+                                <input type="number" name="saldo_fgts" class="form-control"
+                                       value="{{ request.POST.saldo_fgts }}"
+                                       min="1" step="0.01" placeholder="50000" required>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-percent me-1"></i>Taxa de Juros (% a.m.)</label>
+                            <div class="input-group">
+                                <input type="number" name="taxa_juros" class="form-control"
+                                       value="{{ request.POST.taxa_juros }}"
+                                       min="0.01" step="0.01" placeholder="0.75" required>
+                                <span class="input-group-text">%</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-calendar3 me-1"></i>Prazo (meses)</label>
+                            <div class="input-group">
+                                <input type="number" name="meses" class="form-control"
+                                       value="{{ request.POST.meses }}"
+                                       min="1" step="1" placeholder="360" required>
+                                <span class="input-group-text">meses</span>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-toggles me-1"></i>Sistema</label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" value="SAC"
+                                        {% if request.POST.sistema == 'SAC' or not request.POST.sistema %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-primary">SAC</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="sistema" value="PRICE"
+                                        {% if request.POST.sistema == 'PRICE' %}checked{% endif %}>
+                                    <label class="form-check-label fw-semibold text-success">PRICE</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-arrow-left-right me-1"></i>Usar FGTS para</label>
+                            <select name="modalidade" class="form-select">
+                                <option value="parcela" {% if request.POST.modalidade == 'parcela' or not request.POST.modalidade %}selected{% endif %}>
+                                    Reduzir valor da parcela (mesmo prazo)
+                                </option>
+                                <option value="prazo" {% if request.POST.modalidade == 'prazo' %}selected{% endif %}>
+                                    Reduzir prazo (mesma parcela)
+                                </option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 mt-2">
+                            <button type="submit" class="btn btn-primary w-100 rounded-pill"
+                                    style="background:linear-gradient(135deg,#1a3c5e,#2e86c1);border:none;">
+                                <i class="bi bi-piggy-bank-fill me-2"></i>Calcular Impacto do FGTS
+                            </button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resultados -->
+    <div class="col-12 col-lg-8">
+        {% if resultado %}
+
+        <!-- Destaque -->
+        <div class="destaque-fgts">
+            {% if resultado.modalidade == 'parcela' %}
+                <i class="bi bi-arrow-down-circle-fill me-2"></i>
+                Usando R$ {{ resultado.saldo_fgts|brl }} de FGTS, sua parcela reduz em
+                <strong>R$ {{ resultado.economia_parcela|brl }}/mês</strong> —
+                economia total de <strong>R$ {{ resultado.economia_total|brl }}</strong>.
+            {% else %}
+                <i class="bi bi-calendar-check-fill me-2"></i>
+                Usando R$ {{ resultado.saldo_fgts|brl }} de FGTS, você termina
+                <strong>{{ resultado.meses_economizados }} meses mais cedo</strong> —
+                economia de <strong>R$ {{ resultado.economia_total|brl }}</strong>.
+            {% endif %}
+        </div>
+
+        <!-- Parcela / Prazo lado a lado -->
+        <div class="resultado-grid">
+            <div class="lado sem">
+                <div class="titulo"><i class="bi bi-x-circle me-1"></i>Sem FGTS</div>
+                {% if resultado.modalidade == 'parcela' %}
+                    <div class="valor">R$ {{ resultado.parcela_base|brl }}</div>
+                    <div class="sub">{{ resultado.prazo_base }} meses</div>
+                {% else %}
+                    <div class="valor">{{ resultado.prazo_base }}</div>
+                    <div class="sub">meses</div>
+                {% endif %}
+            </div>
+            <div class="lado com">
+                <div class="titulo"><i class="bi bi-check-circle me-1"></i>Com FGTS</div>
+                {% if resultado.modalidade == 'parcela' %}
+                    <div class="valor">R$ {{ resultado.parcela_fgts|brl }}</div>
+                    <div class="sub">{{ resultado.prazo_fgts }} meses</div>
+                {% else %}
+                    <div class="valor">{{ resultado.prazo_fgts }}</div>
+                    <div class="sub">meses</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- KPIs -->
+        <div class="kpi-fgts">
+            <div class="kpi-fgts-item">
+                <div class="num">R$ {{ resultado.juros_base|brl }}</div>
+                <div class="lbl">Juros sem FGTS</div>
+            </div>
+            <div class="kpi-fgts-item">
+                <div class="num">R$ {{ resultado.juros_fgts|brl }}</div>
+                <div class="lbl">Juros com FGTS</div>
+            </div>
+            <div class="kpi-fgts-item">
+                <div class="num">R$ {{ resultado.economia_juros|brl }}</div>
+                <div class="lbl">Economia em juros</div>
+            </div>
+            <div class="kpi-fgts-item">
+                <div class="num">{{ resultado.economia_pct }}%</div>
+                <div class="lbl">Do custo total economizado</div>
+            </div>
+        </div>
+
+        <!-- Gráfico -->
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-graph-down me-2"></i>Evolução do Saldo Devedor
+            </div>
+            <div class="card-body p-3">
+                <canvas id="fgtsChart" height="90"></canvas>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column align-items-center justify-content-center text-center py-5">
+                <i class="bi bi-piggy-bank display-4 text-primary opacity-50 mb-3"></i>
+                <h5 class="fw-semibold">Simule o impacto do FGTS</h5>
+                <p class="text-muted mb-0">Informe os dados do financiamento e o saldo do FGTS para ver quanto você economiza reduzindo a parcela ou o prazo.</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+{% if resultado %}
+<script>
+new Chart(document.getElementById('fgtsChart'), {
+    type: 'line',
+    data: {
+        labels: {{ resultado.chart_labels|safe }},
+        datasets: [
+            {
+                label: 'Sem FGTS',
+                data: {{ resultado.chart_base|safe }},
+                borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            },
+            {
+                label: 'Com FGTS (R$ {{ resultado.saldo_fgts|brl }})',
+                data: {{ resultado.chart_fgts|safe }},
+                borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+                borderWidth: 2.5, pointRadius: 0, fill: true, tension: 0.3,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: { position: 'top' },
+            tooltip: { callbacks: { label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits:2}) } }
+        },
+        scales: {
+            x: { title: { display: true, text: 'Mês' } },
+            y: { ticks: { callback: v => 'R$ ' + (v/1000).toFixed(0) + 'k' } }
+        }
+    }
+});
+</script>
+{% endif %}
+{% endblock %}

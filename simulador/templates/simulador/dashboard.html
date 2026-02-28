@@ -1,57 +1,63 @@
 {% extends "base.html" %}
+{% load simulador_extras %}
 
 {% block title %}Dashboard — Imobiliária{% endblock %}
 {% block page_title %}<i class="bi bi-speedometer2 me-2"></i>Dashboard{% endblock %}
 
 {% block extra_css %}
 <style>
-    .kpi-card {
-        border: none;
+    /* KPI Principal */
+    .kpi-main {
         border-radius: 14px;
-        padding: 24px 28px;
+        padding: 22px 24px;
         color: white;
         box-shadow: 0 4px 18px rgba(0,0,0,0.12);
-        display: flex;
-        align-items: center;
-        gap: 18px;
+        display: flex; align-items: center; gap: 16px;
     }
-    .kpi-card.azul   { background: linear-gradient(135deg, #1a3c5e, #2e86c1); }
-    .kpi-card.verde  { background: linear-gradient(135deg, #065f46, #059669); }
-    .kpi-card.roxo   { background: linear-gradient(135deg, #4c1d95, #7c3aed); }
-    .kpi-icon {
-        font-size: 2.4rem;
-        opacity: 0.85;
-        flex-shrink: 0;
+    .kpi-main.azul   { background: linear-gradient(135deg, #1a3c5e, #2e86c1); }
+    .kpi-main.verde  { background: linear-gradient(135deg, #065f46, #059669); }
+    .kpi-main.roxo   { background: linear-gradient(135deg, #4c1d95, #7c3aed); }
+    .kpi-main.laranja{ background: linear-gradient(135deg, #92400e, #d97706); }
+    .kpi-main-icon  { font-size: 2.4rem; opacity: 0.8; flex-shrink: 0; }
+    .kpi-main-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-bottom: 4px; }
+    .kpi-main-value { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+    .kpi-main-sub   { font-size: 0.78rem; opacity: 0.75; margin-top: 2px; }
+
+    /* Stats secundários */
+    .stats-row {
+        background: white;
+        border-radius: 12px;
+        padding: 16px 24px;
+        display: flex; flex-wrap: wrap; gap: 0;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.06);
     }
-    .kpi-label {
-        font-size: 0.78rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        opacity: 0.85;
-        margin-bottom: 4px;
+    .stat-item {
+        flex: 1; min-width: 120px;
+        text-align: center; padding: 8px 16px;
+        border-right: 1px solid #e2e8f0;
     }
-    .kpi-value {
-        font-size: 1.7rem;
-        font-weight: 700;
-        line-height: 1.1;
-    }
-    .chart-card {
-        border: none;
-        border-radius: 14px;
-        box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-    }
+    .stat-item:last-child { border-right: none; }
+    .stat-item .val { font-size: 1.4rem; font-weight: 700; color: #1a3c5e; }
+    .stat-item .lbl { font-size: 0.75rem; color: #64748b; margin-top: 2px; }
+    [data-bs-theme="dark"] .stats-row { background: #1e293b; }
+    [data-bs-theme="dark"] .stat-item { border-right-color: #334155; }
+    [data-bs-theme="dark"] .stat-item .val { color: #93c5fd; }
+    [data-bs-theme="dark"] .stat-item .lbl { color: #94a3b8; }
+
+    /* Charts */
+    .chart-card { border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
     .chart-card .card-header {
         background: linear-gradient(135deg, #1a3c5e, #2e86c1);
-        color: white;
-        font-weight: 600;
+        color: white; font-weight: 600;
         border-radius: 14px 14px 0 0 !important;
-        padding: 14px 20px;
+        padding: 13px 20px;
     }
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: #94a3b8;
-    }
+
+    /* Recentes */
+    .recente-badge { font-size: 0.72rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+    [data-bs-theme="dark"] .recente-table td { color: #cbd5e1; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
     .empty-state i { font-size: 3rem; margin-bottom: 12px; display: block; }
 </style>
 {% endblock %}
@@ -61,76 +67,153 @@
 {% if request.user.is_staff %}
 <div class="alert alert-info py-2 mb-4" role="alert">
     <i class="bi bi-shield-check me-2"></i>
-    Você está visualizando dados de <strong>todos os usuários</strong> (modo administrador).
+    Visualizando dados de <strong>todos os usuários</strong> (administrador).
 </div>
 {% endif %}
 
-<!-- KPIs -->
-<div class="row g-3 mb-4">
-    <div class="col-12 col-md-4">
-        <div class="kpi-card azul">
-            <i class="bi bi-file-earmark-text kpi-icon"></i>
+<!-- KPIs principais — 4 cards -->
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-main azul">
+            <i class="bi bi-file-earmark-text kpi-main-icon"></i>
             <div>
-                <div class="kpi-label">Total de Simulações</div>
-                <div class="kpi-value">{{ total }}</div>
+                <div class="kpi-main-label">Total de simulações</div>
+                <div class="kpi-main-value">{{ total }}</div>
+                <div class="kpi-main-sub">{{ este_mes }} este mês</div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-4">
-        <div class="kpi-card verde">
-            <i class="bi bi-graph-up-arrow kpi-icon"></i>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-main verde">
+            <i class="bi bi-currency-dollar kpi-main-icon"></i>
             <div>
-                <div class="kpi-label">Volume Potencial</div>
-                <div class="kpi-value">
-                    R$ {% if volume >= 1000000 %}
-                        {{ volume|floatformat:0 }}
-                    {% else %}
-                        {{ volume|floatformat:2 }}
-                    {% endif %}
-                </div>
+                <div class="kpi-main-label">Volume potencial</div>
+                <div class="kpi-main-value" style="font-size:1.35rem;">R$ {{ volume|floatformat:2 }}</div>
             </div>
         </div>
     </div>
-    <div class="col-12 col-md-4">
-        <div class="kpi-card roxo">
-            <i class="bi bi-tags kpi-icon"></i>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-main roxo">
+            <i class="bi bi-check-circle-fill kpi-main-icon"></i>
             <div>
-                <div class="kpi-label">Ticket Médio</div>
-                <div class="kpi-value">R$ {{ ticket_medio|floatformat:2 }}</div>
+                <div class="kpi-main-label">Aprovados</div>
+                <div class="kpi-main-value">{{ aprovados }}</div>
+                <div class="kpi-main-sub">{{ aprovados_pct }}% do total</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-main laranja">
+            <i class="bi bi-tags kpi-main-icon"></i>
+            <div>
+                <div class="kpi-main-label">Ticket médio</div>
+                <div class="kpi-main-value" style="font-size:1.35rem;">R$ {{ ticket_medio|floatformat:0 }}</div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Stats secundários — barra horizontal -->
+<div class="stats-row mb-4">
+    <div class="stat-item">
+        <div class="val">{{ sac_count }}</div>
+        <div class="lbl"><i class="bi bi-graph-down-arrow me-1 text-primary"></i>SAC</div>
+    </div>
+    <div class="stat-item">
+        <div class="val">{{ price_count }}</div>
+        <div class="lbl"><i class="bi bi-bar-chart-line me-1 text-success"></i>PRICE</div>
+    </div>
+    <div class="stat-item">
+        <div class="val">{{ este_mes }}</div>
+        <div class="lbl"><i class="bi bi-calendar-check me-1 text-info"></i>Este mês</div>
+    </div>
+    <div class="stat-item">
+        <div class="val">{{ aprovados_pct }}%</div>
+        <div class="lbl"><i class="bi bi-percent me-1 text-warning"></i>Taxa aprovação</div>
+    </div>
+</div>
+
+{% if total > 0 %}
 
 <!-- Gráficos -->
-{% if total > 0 %}
-<div class="row g-3">
-
-    <!-- Timeline -->
-    <div class="col-12 col-lg-7">
+<div class="row g-3 mb-3">
+    <!-- Timeline ocupa a linha toda -->
+    <div class="col-12">
         <div class="chart-card card">
             <div class="card-header">
-                <i class="bi bi-bar-chart-line me-2"></i>Evolução de Simulações por Dia
+                <i class="bi bi-bar-chart-line me-2"></i>Simulações por Dia
             </div>
             <div class="card-body p-3">
-                <canvas id="timelineChart" height="120"></canvas>
+                <canvas id="timelineChart" height="70"></canvas>
             </div>
         </div>
     </div>
-
-    <!-- Status -->
-    <div class="col-12 col-lg-5">
-        <div class="chart-card card">
-            <div class="card-header">
-                <i class="bi bi-pie-chart me-2"></i>Distribuição de Status
-            </div>
-            <div class="card-body p-3 d-flex align-items-center justify-content-center">
-                <canvas id="statusChart" height="180"></canvas>
-            </div>
-        </div>
-    </div>
-
 </div>
+
+<div class="row g-3 mb-4">
+    <!-- Distribuição de status -->
+    <div class="col-12 col-md-6">
+        <div class="chart-card card h-100">
+            <div class="card-header">
+                <i class="bi bi-pie-chart me-2"></i>Distribuição por Status
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="min-height:220px;">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <!-- SAC vs PRICE -->
+    <div class="col-12 col-md-6">
+        <div class="chart-card card h-100">
+            <div class="card-header">
+                <i class="bi bi-toggles me-2"></i>SAC vs PRICE
+            </div>
+            <div class="card-body d-flex align-items-center justify-content-center" style="min-height:220px;">
+                <canvas id="sistemaChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Atividade recente -->
+{% if recentes %}
+<div class="chart-card card">
+    <div class="card-header">
+        <i class="bi bi-clock-history me-2"></i>Atividade Recente
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0 recente-table">
+                <thead>
+                    <tr>
+                        <th class="ps-3">#</th>
+                        <th>Cliente</th>
+                        {% if request.user.is_staff %}<th>Usuário</th>{% endif %}
+                        <th>Valor Imóvel</th>
+                        <th>Sistema</th>
+                        <th>Status</th>
+                        <th class="pe-3">Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sim in recentes %}
+                    <tr onclick="window.location='{% url 'simulador:detalhe_simulacao' sim.pk %}'" style="cursor:pointer;">
+                        <td class="ps-3 text-muted">{{ sim.pk }}</td>
+                        <td class="fw-semibold">{{ sim.cliente }}</td>
+                        {% if request.user.is_staff %}<td class="text-muted">{{ sim.usuario.username }}</td>{% endif %}
+                        <td>R$ {{ sim.valor_imovel|floatformat:2 }}</td>
+                        <td><span class="recente-badge {% if sim.sistema == 'SAC' %}badge-sac{% else %}badge-price{% endif %}">{{ sim.sistema }}</span></td>
+                        <td><span class="recente-badge badge-{{ sim.status }}">{{ sim.get_status_display }}</span></td>
+                        <td class="pe-3 text-muted">{{ sim.criado_em|date:"d/m/Y" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% else %}
 <div class="chart-card card">
     <div class="card-body empty-state">
@@ -150,71 +233,57 @@
     const timelineData   = {{ timeline_data|safe }};
     const statusLabels   = {{ status_labels|safe }};
     const statusData     = {{ status_data|safe }};
+    const sistemaLabels  = {{ sistema_labels|safe }};
+    const sistemaData    = {{ sistema_data|safe }};
 
-    // Gráfico de barras — Timeline
     if (timelineLabels.length > 0) {
         new Chart(document.getElementById('timelineChart'), {
             type: 'bar',
             data: {
                 labels: timelineLabels,
-                datasets: [{
-                    label: 'Simulações',
-                    data: timelineData,
-                    backgroundColor: 'rgba(46, 134, 193, 0.75)',
-                    borderColor: '#1a3c5e',
-                    borderWidth: 1,
-                    borderRadius: 6,
-                }]
+                datasets: [{ label: 'Simulações', data: timelineData,
+                    backgroundColor: 'rgba(46,134,193,0.75)', borderColor: '#1a3c5e',
+                    borderWidth: 1, borderRadius: 6 }]
             },
             options: {
                 responsive: true,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { callbacks: {
-                        label: ctx => ` ${ctx.parsed.y} simulação(ões)`
-                    }}
-                },
+                plugins: { legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} simulação(ões)` } } },
                 scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1, precision: 0 },
-                        grid: { color: 'rgba(0,0,0,0.05)' }
-                    },
+                    y: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 }, grid: { color: 'rgba(0,0,0,0.05)' } },
                     x: { grid: { display: false } }
                 }
             }
         });
     }
 
-    // Gráfico de rosca — Status
+    const coresPie = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+
     if (statusLabels.length > 0) {
-        const cores = [
-            '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
-            '#8b5cf6', '#06b6d4', '#f97316'
-        ];
         new Chart(document.getElementById('statusChart'), {
             type: 'doughnut',
-            data: {
-                labels: statusLabels,
-                datasets: [{
-                    data: statusData,
-                    backgroundColor: cores.slice(0, statusLabels.length),
-                    borderWidth: 2,
-                    borderColor: '#fff',
-                    hoverOffset: 8,
-                }]
-            },
-            options: {
-                responsive: true,
-                cutout: '50%',
+            data: { labels: statusLabels,
+                datasets: [{ data: statusData, backgroundColor: coresPie.slice(0, statusLabels.length),
+                    borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+            options: { responsive: true, cutout: '55%',
                 plugins: {
-                    legend: {
-                        position: 'bottom',
-                        labels: { padding: 16, font: { size: 13 } }
-                    },
-                    tooltip: { callbacks: {
-                        label: ctx => ` ${ctx.label}: ${ctx.parsed} simulação(ões)`
-                    }}
+                    legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
+                }
+            }
+        });
+    }
+
+    if (sistemaData[0] + sistemaData[1] > 0) {
+        new Chart(document.getElementById('sistemaChart'), {
+            type: 'doughnut',
+            data: { labels: sistemaLabels,
+                datasets: [{ data: sistemaData, backgroundColor: ['#2e86c1','#10b981'],
+                    borderWidth: 2, borderColor: '#fff', hoverOffset: 8 }] },
+            options: { responsive: true, cutout: '55%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { padding: 14, font: { size: 12 } } },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed}` } }
                 }
             }
         });

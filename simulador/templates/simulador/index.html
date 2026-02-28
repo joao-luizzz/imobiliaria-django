@@ -137,6 +137,15 @@
                                       rows="3" placeholder="Observações sobre o cliente ou a negociação…">{{ request.POST.observacoes }}</textarea>
                         </div>
 
+                        <!-- Tags -->
+                        <div class="col-12">
+                            <label class="form-label"><i class="bi bi-tags me-1"></i>Tags <small class="text-muted fw-normal">(opcional, separadas por vírgula)</small></label>
+                            <input type="text" name="tags" class="form-control"
+                                   value="{{ request.POST.tags }}"
+                                   placeholder="banco xxx, urgente, cliente vip...">
+                            <div class="form-text">Ex: banco itaú, urgente, cliente vip</div>
+                        </div>
+
                         <!-- Seguros MIP + DFI -->
                         <div class="col-12">
                             <div class="d-flex align-items-center gap-2 mb-2">

@@ -14,6 +14,8 @@ from io import BytesIO
 import json
 import datetime
 import uuid
+import math
+import urllib.request
 
 
 def staff_required(view_func):
@@ -45,6 +47,7 @@ def simular(request):
             observacoes = request.POST.get("observacoes", "").strip()
             mip_mensal = float(request.POST.get("mip_mensal", 0) or 0)
             dfi_mensal = float(request.POST.get("dfi_mensal", 0) or 0)
+            tags = request.POST.get("tags", "").strip()
 
             if valor_entrada >= valor_imovel:
                 raise ValueError("A entrada não pode ser maior ou igual ao valor do imóvel.")
@@ -71,6 +74,7 @@ def simular(request):
                 mip_mensal=mip_mensal,
                 dfi_mensal=dfi_mensal,
                 observacoes=observacoes,
+                tags=tags,
             )
 
             total_pago = sum(float(p["valor"]) for p in parcelas) if parcelas else 0
@@ -129,6 +133,16 @@ def dashboard(request):
     volume = qs.aggregate(total=Sum('valor_imovel'))['total'] or 0
     ticket_medio = (volume / total) if total > 0 else 0
 
+    # KPIs extras
+    aprovados = qs.filter(status='aprovado').count()
+    aprovados_pct = round(aprovados / total * 100, 1) if total > 0 else 0
+    este_mes = qs.filter(
+        criado_em__year=datetime.date.today().year,
+        criado_em__month=datetime.date.today().month,
+    ).count()
+    sac_count = qs.filter(sistema='SAC').count()
+    price_count = qs.filter(sistema='PRICE').count()
+
     # Gráfico de timeline: simulações por dia
     por_dia = defaultdict(int)
     for sim in qs.values('criado_em'):
@@ -145,14 +159,25 @@ def dashboard(request):
     status_labels = [status_map.get(s['status'], s['status']) for s in status_qs]
     status_data = [s['total'] for s in status_qs]
 
+    # Atividade recente
+    recentes = qs.select_related('usuario').order_by('-criado_em')[:5]
+
     context = {
         'total': total,
         'volume': volume,
         'ticket_medio': ticket_medio,
+        'aprovados': aprovados,
+        'aprovados_pct': aprovados_pct,
+        'este_mes': este_mes,
+        'sac_count': sac_count,
+        'price_count': price_count,
         'timeline_labels': json.dumps(timeline_labels),
         'timeline_data': json.dumps(timeline_data),
         'status_labels': json.dumps(status_labels),
         'status_data': json.dumps(status_data),
+        'sistema_labels': json.dumps(['SAC', 'PRICE']),
+        'sistema_data': json.dumps([sac_count, price_count]),
+        'recentes': recentes,
     }
     return render(request, 'simulador/dashboard.html', context)
 
@@ -168,6 +193,7 @@ def historico(request):
     busca = request.GET.get('busca', '').strip()
     filtro_status = request.GET.get('status', '')
     filtro_sistema = request.GET.get('sistema', '')
+    filtro_tag = request.GET.get('filtro_tag', '').strip()
     data_inicio = request.GET.get('data_inicio', '').strip()
     data_fim = request.GET.get('data_fim', '').strip()
 
@@ -177,6 +203,8 @@ def historico(request):
         qs = qs.filter(status=filtro_status)
     if filtro_sistema:
         qs = qs.filter(sistema=filtro_sistema)
+    if filtro_tag:
+        qs = qs.filter(tags__icontains=filtro_tag)
     if data_inicio:
         try:
             qs = qs.filter(criado_em__date__gte=datetime.date.fromisoformat(data_inicio))
@@ -198,6 +226,7 @@ def historico(request):
         'busca': busca,
         'filtro_status': filtro_status,
         'filtro_sistema': filtro_sistema,
+        'filtro_tag': filtro_tag,
         'data_inicio': data_inicio,
         'data_fim': data_fim,
         'status_choices': Simulation.STATUS_CHOICES,
@@ -255,6 +284,7 @@ def editar_simulacao(request, pk):
             sim.mip_mensal = float(request.POST.get('mip_mensal', 0) or 0)
             sim.dfi_mensal = float(request.POST.get('dfi_mensal', 0) or 0)
             sim.observacoes = observacoes
+            sim.tags = request.POST.get('tags', '').strip()
             sim.save()
 
             messages.success(request, 'Simulação atualizada com sucesso.')
@@ -398,6 +428,175 @@ def comparativo(request):
             messages.error(request, f'Erro nos dados informados: {e}')
 
     return render(request, 'simulador/comparativo.html', {'resultado': resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def amortizacao_extra(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_financiado = float(request.POST.get('valor_financiado', 0))
+            taxa_juros = float(request.POST.get('taxa_juros', 0))
+            prazo_meses = int(request.POST.get('meses', 0))
+            sistema = request.POST.get('sistema', 'SAC').upper()
+            aporte_extra = float(request.POST.get('aporte_extra', 0))
+
+            if valor_financiado <= 0 or taxa_juros <= 0 or prazo_meses <= 0:
+                raise ValueError("Preencha todos os campos com valores válidos.")
+            if aporte_extra < 0:
+                raise ValueError("O aporte extra não pode ser negativo.")
+
+            taxa_m = taxa_juros / 100
+
+            # ── Cenário base ──────────────────────────────────────────────
+            parcelas_base = (calcular_sac if sistema == 'SAC' else calcular_price)(
+                valor_financiado, taxa_juros, prazo_meses)
+            total_juros_base = sum(float(p['juros']) for p in parcelas_base)
+
+            # ── Cenário com aporte extra (mês a mês) ──────────────────────
+            saldo = valor_financiado
+            mes = 0
+            total_juros_extra = 0.0
+
+            if sistema == 'SAC':
+                amort_base = valor_financiado / prazo_meses
+                while saldo > 0.01:
+                    juros = saldo * taxa_m
+                    total_juros_extra += juros
+                    amort = min(amort_base + aporte_extra, saldo)
+                    saldo -= amort
+                    mes += 1
+                    if mes > prazo_meses * 2:
+                        break
+            else:
+                if taxa_m > 0:
+                    num = taxa_m * (1 + taxa_m) ** prazo_meses
+                    den = (1 + taxa_m) ** prazo_meses - 1
+                    pmt = valor_financiado * num / den
+                else:
+                    pmt = valor_financiado / prazo_meses
+                while saldo > 0.01:
+                    juros = saldo * taxa_m
+                    total_juros_extra += juros
+                    amort_price = pmt - juros
+                    amort = min(amort_price + aporte_extra, saldo)
+                    saldo -= amort
+                    mes += 1
+                    if mes > prazo_meses * 2:
+                        break
+
+            economia_juros = total_juros_base - total_juros_extra
+            meses_economizados = prazo_meses - mes
+
+            # Amostragem para gráfico (máx 60 pts) dos dois cenários
+            passo = max(1, prazo_meses // 60)
+            chart_labels = [p['numero'] for p in parcelas_base[::passo]]
+            chart_base = [float(p['saldo_devedor']) for p in parcelas_base[::passo]]
+
+            # recalcular saldos do cenário extra para o gráfico
+            saldo2, saldos_extra = valor_financiado, []
+            amort_base2 = valor_financiado / prazo_meses if sistema == 'SAC' else None
+            if sistema == 'PRICE' and taxa_m > 0:
+                num = taxa_m * (1 + taxa_m) ** prazo_meses
+                pmt2 = valor_financiado * num / ((1 + taxa_m) ** prazo_meses - 1)
+            elif sistema == 'PRICE':
+                pmt2 = valor_financiado / prazo_meses
+
+            for i in range(prazo_meses):
+                if saldo2 <= 0:
+                    saldos_extra.append(0)
+                    continue
+                j2 = saldo2 * taxa_m
+                if sistema == 'SAC':
+                    saldo2 -= min(amort_base2 + aporte_extra, saldo2)
+                else:
+                    saldo2 -= min((pmt2 - j2) + aporte_extra, saldo2)
+                saldos_extra.append(round(saldo2, 2))
+
+            chart_extra = saldos_extra[::passo]
+            if len(chart_extra) < len(chart_labels):
+                chart_extra += [0] * (len(chart_labels) - len(chart_extra))
+
+            resultado = {
+                'sistema': sistema,
+                'valor_financiado': f'{valor_financiado:.2f}',
+                'taxa_juros': f'{taxa_juros:.4f}',
+                'meses': prazo_meses,
+                'aporte_extra': f'{aporte_extra:.2f}',
+                'meses_base': prazo_meses,
+                'meses_extra': mes,
+                'meses_economizados': meses_economizados,
+                'total_juros_base': f'{total_juros_base:.2f}',
+                'total_juros_extra': f'{total_juros_extra:.2f}',
+                'economia_juros': f'{economia_juros:.2f}',
+                'economia_pct': f'{(economia_juros / total_juros_base * 100):.1f}' if total_juros_base > 0 else '0',
+                'chart_labels': json.dumps(chart_labels),
+                'chart_base': json.dumps(chart_base),
+                'chart_extra': json.dumps(chart_extra),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/amortizacao_extra.html', {'resultado': resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def portabilidade(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            saldo_devedor = float(request.POST.get('saldo_devedor', 0))
+            taxa_atual = float(request.POST.get('taxa_atual', 0))
+            taxa_nova = float(request.POST.get('taxa_nova', 0))
+            prazo_restante = int(request.POST.get('prazo_restante', 0))
+
+            if saldo_devedor <= 0 or taxa_atual <= 0 or taxa_nova <= 0 or prazo_restante <= 0:
+                raise ValueError("Preencha todos os campos com valores válidos.")
+
+            parcelas_atual = calcular_price(saldo_devedor, taxa_atual, prazo_restante)
+            parcelas_nova = calcular_price(saldo_devedor, taxa_nova, prazo_restante)
+
+            total_atual = sum(float(p['valor']) for p in parcelas_atual)
+            total_nova = sum(float(p['valor']) for p in parcelas_nova)
+            juros_atual = sum(float(p['juros']) for p in parcelas_atual)
+            juros_nova = sum(float(p['juros']) for p in parcelas_nova)
+
+            parcela_atual = float(parcelas_atual[0]['valor'])
+            parcela_nova = float(parcelas_nova[0]['valor'])
+            economia_mensal = parcela_atual - parcela_nova
+            economia_total = total_atual - total_nova
+
+            passo = max(1, prazo_restante // 60)
+            chart_labels = [p['numero'] for p in parcelas_atual[::passo]]
+            chart_atual = [float(p['saldo_devedor']) for p in parcelas_atual[::passo]]
+            chart_nova = [float(p['saldo_devedor']) for p in parcelas_nova[::passo]]
+
+            resultado = {
+                'saldo_devedor': f'{saldo_devedor:.2f}',
+                'taxa_atual': f'{taxa_atual:.4f}',
+                'taxa_nova': f'{taxa_nova:.4f}',
+                'prazo_restante': prazo_restante,
+                'parcela_atual': f'{parcela_atual:.2f}',
+                'parcela_nova': f'{parcela_nova:.2f}',
+                'economia_mensal': f'{economia_mensal:.2f}',
+                'economia_total': f'{economia_total:.2f}',
+                'total_atual': f'{total_atual:.2f}',
+                'total_nova': f'{total_nova:.2f}',
+                'juros_atual': f'{juros_atual:.2f}',
+                'juros_nova': f'{juros_nova:.2f}',
+                'economia_juros': f'{juros_atual - juros_nova:.2f}',
+                'economia_pct': f'{(economia_total / total_atual * 100):.1f}' if total_atual > 0 else '0',
+                'vale_porta': economia_mensal > 0,
+                'chart_labels': json.dumps(chart_labels),
+                'chart_atual': json.dumps(chart_atual),
+                'chart_nova': json.dumps(chart_nova),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/portabilidade.html', {'resultado': resultado})
 
 
 @login_required
@@ -799,6 +998,21 @@ def detalhe_simulacao(request, pk):
     total_juros = total_pago - float(sim.valor_financiado)
     total_seguros = sum(float(p['seguro']) for p in parcelas)
 
+    # Gráfico comparativo SAC vs PRICE
+    vf = float(sim.valor_financiado)
+    tj = float(sim.taxa_juros)
+    pm = sim.prazo_meses
+    p_sac   = calcular_sac(vf, tj, pm)
+    p_price = calcular_price(vf, tj, pm)
+    passo = max(1, pm // 60)
+    chart_labels     = [p['numero'] for p in p_sac[::passo]]
+    chart_saldo_sac  = [float(p['saldo_devedor']) for p in p_sac[::passo]]
+    chart_saldo_price= [float(p['saldo_devedor']) for p in p_price[::passo]]
+    total_sac   = sum(float(p['valor']) for p in p_sac)
+    total_price = sum(float(p['valor']) for p in p_price)
+    juros_sac   = total_sac   - vf
+    juros_price = total_price - vf
+
     return render(request, 'simulador/detalhe.html', {
         'sim': sim,
         'parcelas': parcelas,
@@ -807,7 +1021,244 @@ def detalhe_simulacao(request, pk):
         'total_seguros': total_seguros,
         'primeira_parcela': parcelas[0]['valor'] if parcelas else '0.00',
         'ultima_parcela': parcelas[-1]['valor'] if parcelas else '0.00',
+        'chart_labels': json.dumps(chart_labels),
+        'chart_saldo_sac': json.dumps(chart_saldo_sac),
+        'chart_saldo_price': json.dumps(chart_saldo_price),
+        'total_sac': f'{total_sac:.2f}',
+        'total_price': f'{total_price:.2f}',
+        'juros_sac': f'{juros_sac:.2f}',
+        'juros_price': f'{juros_price:.2f}',
+        'primeira_sac': p_sac[0]['valor'] if p_sac else '0.00',
+        'primeira_price': p_price[0]['valor'] if p_price else '0.00',
     })
+
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def fgts(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_financiado = float(request.POST.get('valor_financiado', 0))
+            taxa_juros = float(request.POST.get('taxa_juros', 0))
+            prazo_meses = int(request.POST.get('meses', 0))
+            sistema = request.POST.get('sistema', 'SAC').upper()
+            saldo_fgts = float(request.POST.get('saldo_fgts', 0))
+            modalidade = request.POST.get('modalidade', 'parcela')
+
+            if any(v <= 0 for v in [valor_financiado, taxa_juros, prazo_meses, saldo_fgts]):
+                raise ValueError("Preencha todos os campos com valores positivos.")
+            if saldo_fgts >= valor_financiado:
+                raise ValueError("O FGTS não pode ser maior ou igual ao valor financiado.")
+
+            fn = calcular_sac if sistema == 'SAC' else calcular_price
+            parcelas_base = fn(valor_financiado, taxa_juros, prazo_meses)
+            total_base  = sum(float(p['valor']) for p in parcelas_base)
+            juros_base  = sum(float(p['juros']) for p in parcelas_base)
+            parcela_1_base = float(parcelas_base[0]['valor'])
+
+            novo_financiado = valor_financiado - saldo_fgts
+            taxa_m = taxa_juros / 100
+
+            if modalidade == 'parcela':
+                # Mesma prazo, principal reduzido → parcela menor
+                parcelas_fgts = fn(novo_financiado, taxa_juros, prazo_meses)
+                prazo_fgts = prazo_meses
+                meses_economizados = 0
+            else:
+                # Mesmo PMT, prazo reduzido
+                if sistema == 'PRICE':
+                    pmt = float(parcelas_base[0]['valor'])
+                    if taxa_m > 0 and pmt > novo_financiado * taxa_m:
+                        novo_n = math.ceil(
+                            -math.log(1 - novo_financiado * taxa_m / pmt) / math.log(1 + taxa_m)
+                        )
+                    else:
+                        novo_n = prazo_meses
+                else:
+                    amort_base = valor_financiado / prazo_meses
+                    novo_n = math.ceil(novo_financiado / amort_base)
+
+                novo_n = max(1, min(novo_n, prazo_meses))
+                parcelas_fgts = fn(novo_financiado, taxa_juros, novo_n)
+                prazo_fgts = novo_n
+                meses_economizados = prazo_meses - novo_n
+
+            total_fgts = sum(float(p['valor']) for p in parcelas_fgts)
+            juros_fgts = sum(float(p['juros']) for p in parcelas_fgts)
+            parcela_1_fgts = float(parcelas_fgts[0]['valor'])
+            economia_parcela = parcela_1_base - parcela_1_fgts
+            economia_total   = total_base - total_fgts
+            economia_juros   = juros_base - juros_fgts
+
+            passo = max(1, prazo_meses // 60)
+            chart_labels = [p['numero'] for p in parcelas_base[::passo]]
+            chart_base   = [float(p['saldo_devedor']) for p in parcelas_base[::passo]]
+            chart_fgts   = [float(p['saldo_devedor']) for p in parcelas_fgts[::passo]]
+            if len(chart_fgts) < len(chart_labels):
+                chart_fgts += [0] * (len(chart_labels) - len(chart_fgts))
+
+            resultado = {
+                'modalidade': modalidade,
+                'sistema': sistema,
+                'valor_financiado': f'{valor_financiado:.2f}',
+                'novo_financiado': f'{novo_financiado:.2f}',
+                'saldo_fgts': f'{saldo_fgts:.2f}',
+                'taxa_juros': f'{taxa_juros:.4f}',
+                'meses': prazo_meses,
+                'parcela_base': f'{parcela_1_base:.2f}',
+                'parcela_fgts': f'{parcela_1_fgts:.2f}',
+                'prazo_base': prazo_meses,
+                'prazo_fgts': prazo_fgts,
+                'meses_economizados': meses_economizados,
+                'economia_parcela': f'{economia_parcela:.2f}',
+                'total_base': f'{total_base:.2f}',
+                'total_fgts': f'{total_fgts:.2f}',
+                'juros_base': f'{juros_base:.2f}',
+                'juros_fgts': f'{juros_fgts:.2f}',
+                'economia_total': f'{economia_total:.2f}',
+                'economia_juros': f'{economia_juros:.2f}',
+                'economia_pct': f'{(economia_total / total_base * 100):.1f}' if total_base > 0 else '0',
+                'chart_labels': json.dumps(chart_labels),
+                'chart_base': json.dumps(chart_base),
+                'chart_fgts': json.dumps(chart_fgts),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/fgts.html', {'resultado': resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def itbi(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_imovel     = float(request.POST.get('valor_imovel', 0))
+            aliquota_itbi    = float(request.POST.get('aliquota_itbi', 2.0))
+            cartorio_percent = float(request.POST.get('cartorio_percent', 1.0))
+            avaliacao        = float(request.POST.get('avaliacao', 3000) or 3000)
+            certidoes        = float(request.POST.get('certidoes', 500) or 500)
+
+            if valor_imovel <= 0:
+                raise ValueError("Informe o valor do imóvel.")
+
+            itbi_val   = valor_imovel * (aliquota_itbi / 100)
+            cartorio   = valor_imovel * (cartorio_percent / 100)
+            total_taxas = itbi_val + cartorio + avaliacao + certidoes
+            custo_total = valor_imovel + total_taxas
+            pct         = (total_taxas / valor_imovel * 100) if valor_imovel > 0 else 0
+
+            resultado = {
+                'valor_imovel':     f'{valor_imovel:.2f}',
+                'aliquota_itbi':    f'{aliquota_itbi:.2f}',
+                'cartorio_percent': f'{cartorio_percent:.2f}',
+                'itbi':             f'{itbi_val:.2f}',
+                'cartorio':         f'{cartorio:.2f}',
+                'avaliacao':        f'{avaliacao:.2f}',
+                'certidoes':        f'{certidoes:.2f}',
+                'total_taxas':      f'{total_taxas:.2f}',
+                'custo_total':      f'{custo_total:.2f}',
+                'pct_sobre_imovel': f'{pct:.1f}',
+                # chart: breakdown
+                'chart_labels': json.dumps(['ITBI', 'Cartório/Registro', 'Aval. Bancária', 'Certidões']),
+                'chart_data':   json.dumps([round(itbi_val, 2), round(cartorio, 2),
+                                            round(avaliacao, 2), round(certidoes, 2)]),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/itbi.html', {'resultado': resultado})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def ipca_tr(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_financiado = float(request.POST.get('valor_financiado', 0))
+            taxa_juros       = float(request.POST.get('taxa_juros', 0))
+            prazo_meses      = int(request.POST.get('meses', 0))
+            sistema          = request.POST.get('sistema', 'SAC').upper()
+            taxa_correcao    = float(request.POST.get('taxa_correcao', 0))
+
+            if valor_financiado <= 0 or taxa_juros <= 0 or prazo_meses <= 0:
+                raise ValueError("Preencha todos os campos com valores válidos.")
+
+            taxa_m = taxa_juros / 100
+            corr_m = taxa_correcao / 100
+
+            # Cenário base (sem correção)
+            fn = calcular_sac if sistema == 'SAC' else calcular_price
+            parcelas_base = fn(valor_financiado, taxa_juros, prazo_meses)
+            total_base  = sum(float(p['valor']) for p in parcelas_base)
+            juros_base  = sum(float(p['juros']) for p in parcelas_base)
+
+            # Cenário com correção mensal (IPCA/TR sobre saldo)
+            saldo = valor_financiado
+            total_corr = 0.0
+            juros_corr = 0.0
+            saldos_corr = []
+
+            if sistema == 'SAC':
+                amort_base = valor_financiado / prazo_meses
+                for _ in range(prazo_meses):
+                    if saldo <= 0.01:
+                        saldos_corr.append(0)
+                        continue
+                    saldo  *= (1 + corr_m)
+                    juros   = saldo * taxa_m
+                    amort   = min(amort_base * (1 + corr_m), saldo)
+                    total_corr += amort + juros
+                    juros_corr += juros
+                    saldo -= amort
+                    saldos_corr.append(round(max(saldo, 0), 2))
+            else:
+                pmt = float(parcelas_base[0]['valor'])
+                for _ in range(prazo_meses):
+                    if saldo <= 0.01:
+                        saldos_corr.append(0)
+                        continue
+                    saldo *= (1 + corr_m)
+                    juros  = saldo * taxa_m
+                    amort  = max(pmt - juros, 0)
+                    total_corr += pmt
+                    juros_corr += juros
+                    saldo  = max(saldo - amort, 0)
+                    saldos_corr.append(round(saldo, 2))
+
+            custo_extra = total_corr - total_base
+
+            passo = max(1, prazo_meses // 60)
+            chart_labels = [p['numero'] for p in parcelas_base[::passo]]
+            chart_base   = [float(p['saldo_devedor']) for p in parcelas_base[::passo]]
+            chart_corr   = saldos_corr[::passo]
+            if len(chart_corr) < len(chart_labels):
+                chart_corr += [0] * (len(chart_labels) - len(chart_corr))
+
+            resultado = {
+                'sistema': sistema,
+                'valor_financiado': f'{valor_financiado:.2f}',
+                'taxa_juros':       f'{taxa_juros:.4f}',
+                'meses':            prazo_meses,
+                'taxa_correcao':    f'{taxa_correcao:.4f}',
+                'total_base':       f'{total_base:.2f}',
+                'total_corr':       f'{total_corr:.2f}',
+                'juros_base':       f'{juros_base:.2f}',
+                'juros_corr':       f'{juros_corr:.2f}',
+                'custo_extra':      f'{custo_extra:.2f}',
+                'custo_extra_pct':  f'{(custo_extra / total_base * 100):.1f}' if total_base > 0 else '0',
+                'chart_labels':     json.dumps(chart_labels),
+                'chart_base':       json.dumps(chart_base),
+                'chart_corr':       json.dumps(chart_corr),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/ipca_tr.html', {'resultado': resultado})
 
 
 # ── Gestão de Usuários (staff only) ──────────────────────────────────────────
@@ -914,3 +1365,438 @@ def usuario_toggle_ativo(request, pk):
         estado = 'ativado' if usuario.is_active else 'desativado'
         messages.success(request, f'Usuário "{usuario.username}" {estado} com sucesso.')
     return redirect('simulador:usuarios_lista')
+
+
+# ── BCB API helper ─────────────────────────────────────────────────────────────
+
+_bcb_cache = {}
+
+def _bcb_fetch(codigo):
+    """Busca o último valor de uma série do SGS/BCB com cache de 1h."""
+    agora = datetime.datetime.now()
+    if codigo in _bcb_cache:
+        valor, ts = _bcb_cache[codigo]
+        if (agora - ts).seconds < 3600:
+            return valor
+    try:
+        url = f'https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo}/dados/ultimos/1?formato=json'
+        with urllib.request.urlopen(url, timeout=4) as resp:
+            dados = json.loads(resp.read().decode())
+            valor = float(dados[0]['valor'].replace(',', '.'))
+            _bcb_cache[codigo] = (valor, agora)
+            return valor
+    except Exception:
+        return None
+
+
+# ── CET — Custo Efetivo Total ──────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def cet(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_financiado = float(request.POST.get('valor_financiado', 0))
+            taxa_juros = float(request.POST.get('taxa_juros', 0))
+            prazo_meses = int(request.POST.get('meses', 0))
+            sistema = request.POST.get('sistema', 'SAC').upper()
+            mip_mensal = float(request.POST.get('mip_mensal', 0) or 0)
+            dfi_mensal = float(request.POST.get('dfi_mensal', 0) or 0)
+            tarifa_emissao = float(request.POST.get('tarifa_emissao', 0) or 0)
+            tarifa_avaliacao = float(request.POST.get('tarifa_avaliacao', 0) or 0)
+            valor_imovel = float(request.POST.get('valor_imovel', 0) or valor_financiado)
+
+            if valor_financiado <= 0 or taxa_juros <= 0 or prazo_meses <= 0:
+                raise ValueError("Preencha os campos obrigatórios com valores positivos.")
+
+            fn = calcular_sac if sistema == 'SAC' else calcular_price
+            parcelas = fn(valor_financiado, taxa_juros, prazo_meses, mip_mensal, dfi_mensal, valor_imovel)
+            fluxos = [float(p['valor']) for p in parcelas]
+            tarifas = tarifa_emissao + tarifa_avaliacao
+            pv_liq = valor_financiado - tarifas
+
+            # Newton-Raphson: encontrar a taxa r tal que PV = sum(PMT_k/(1+r)^k)
+            r = taxa_juros / 100
+            for _ in range(200):
+                fr = pv_liq - sum(pmt / (1 + r) ** k for k, pmt in enumerate(fluxos, 1))
+                dfr = sum(k * pmt / (1 + r) ** (k + 1) for k, pmt in enumerate(fluxos, 1))
+                if abs(dfr) < 1e-14:
+                    break
+                r_new = r - fr / dfr
+                if abs(r_new - r) < 1e-10:
+                    r = r_new
+                    break
+                r = max(r_new, 1e-8)
+
+            cet_mensal = r * 100
+            cet_anual = ((1 + r) ** 12 - 1) * 100
+            taxa_nom_anual = taxa_juros * 12
+            cet_anual_nom = cet_mensal * 12
+            total_pago = sum(fluxos)
+            total_juros = total_pago - valor_financiado
+            custo_total_real = total_pago - valor_financiado + tarifas
+
+            resultado = {
+                'sistema': sistema,
+                'valor_financiado': f'{valor_financiado:.2f}',
+                'taxa_juros': f'{taxa_juros:.4f}',
+                'taxa_nom_anual': f'{taxa_nom_anual:.2f}',
+                'meses': prazo_meses,
+                'tarifas': f'{tarifas:.2f}',
+                'tarifa_emissao': f'{tarifa_emissao:.2f}',
+                'tarifa_avaliacao': f'{tarifa_avaliacao:.2f}',
+                'cet_mensal': f'{cet_mensal:.4f}',
+                'cet_anual': f'{cet_anual:.2f}',
+                'cet_anual_nom': f'{cet_anual_nom:.2f}',
+                'diferenca_mensal': f'{cet_mensal - taxa_juros:.4f}',
+                'total_pago': f'{total_pago:.2f}',
+                'total_juros': f'{total_juros:.2f}',
+                'custo_total_real': f'{custo_total_real:.2f}',
+                'primera_parcela': parcelas[0]['valor'] if parcelas else '0.00',
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/cet.html', {'resultado': resultado})
+
+
+# ── Consórcio vs Financiamento ────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def consorcio(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            valor_bem = float(request.POST.get('valor_bem', 0))
+            prazo_meses = int(request.POST.get('meses', 0))
+            taxa_admin_pct = float(request.POST.get('taxa_admin_pct', 18.0))
+            fundo_reserva_pct = float(request.POST.get('fundo_reserva_pct', 3.0))
+            taxa_juros_financ = float(request.POST.get('taxa_juros_financ', 0))
+
+            if valor_bem <= 0 or prazo_meses <= 0 or taxa_juros_financ <= 0:
+                raise ValueError("Preencha todos os campos com valores positivos.")
+
+            # ── Consórcio ──────────────────────────────────────────────────────
+            taxa_admin_total = valor_bem * taxa_admin_pct / 100
+            fundo_reserva = valor_bem * fundo_reserva_pct / 100
+            total_consorcio = valor_bem + taxa_admin_total + fundo_reserva
+            parcela_consorcio = total_consorcio / prazo_meses
+            custo_extra_consorcio = taxa_admin_total + fundo_reserva
+
+            # ── Financiamento PRICE ────────────────────────────────────────────
+            parcelas_price = calcular_price(valor_bem, taxa_juros_financ, prazo_meses)
+            total_financ = sum(float(p['valor']) for p in parcelas_price)
+            juros_financ = total_financ - valor_bem
+            parcela_financ_1 = float(parcelas_price[0]['valor'])
+
+            diferenca_total = total_consorcio - total_financ
+            parcela_menor_consorcio = parcela_consorcio < parcela_financ_1
+
+            passo = max(1, prazo_meses // 60)
+            chart_labels = list(range(1, prazo_meses + 1, passo))
+            chart_consorcio = [round(parcela_consorcio, 2)] * len(chart_labels)
+            chart_financiamento = [float(parcelas_price[i]['valor']) for i in
+                                   range(0, prazo_meses, passo) if i < len(parcelas_price)]
+
+            resultado = {
+                'valor_bem': f'{valor_bem:.2f}',
+                'prazo_meses': prazo_meses,
+                'taxa_admin_pct': f'{taxa_admin_pct:.2f}',
+                'fundo_reserva_pct': f'{fundo_reserva_pct:.2f}',
+                'taxa_juros_financ': f'{taxa_juros_financ:.4f}',
+                'taxa_admin_total': f'{taxa_admin_total:.2f}',
+                'fundo_reserva': f'{fundo_reserva:.2f}',
+                'total_consorcio': f'{total_consorcio:.2f}',
+                'parcela_consorcio': f'{parcela_consorcio:.2f}',
+                'custo_extra_consorcio': f'{custo_extra_consorcio:.2f}',
+                'total_financ': f'{total_financ:.2f}',
+                'juros_financ': f'{juros_financ:.2f}',
+                'parcela_financ_1': f'{parcela_financ_1:.2f}',
+                'diferenca_total': f'{abs(diferenca_total):.2f}',
+                'consorcio_mais_barato': total_consorcio < total_financ,
+                'parcela_menor_consorcio': parcela_menor_consorcio,
+                'chart_labels': json.dumps(chart_labels),
+                'chart_consorcio': json.dumps(chart_consorcio),
+                'chart_financiamento': json.dumps(chart_financiamento),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/consorcio.html', {'resultado': resultado})
+
+
+# ── Refinanciamento ────────────────────────────────────────────────────────────
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def refinanciamento(request):
+    resultado = None
+    if request.method == 'POST':
+        try:
+            saldo_devedor = float(request.POST.get('saldo_devedor', 0))
+            taxa_atual = float(request.POST.get('taxa_atual', 0))
+            prazo_restante = int(request.POST.get('prazo_restante', 0))
+            taxa_nova = float(request.POST.get('taxa_nova', 0))
+            prazo_novo = int(request.POST.get('prazo_novo', 0) or prazo_restante)
+            sistema = request.POST.get('sistema', 'PRICE').upper()
+
+            if any(v <= 0 for v in [saldo_devedor, taxa_atual, prazo_restante, taxa_nova]):
+                raise ValueError("Preencha todos os campos com valores positivos.")
+            if prazo_novo <= 0:
+                prazo_novo = prazo_restante
+
+            fn = calcular_sac if sistema == 'SAC' else calcular_price
+
+            parcelas_atual = fn(saldo_devedor, taxa_atual, prazo_restante)
+            parcelas_nova = fn(saldo_devedor, taxa_nova, prazo_novo)
+
+            total_atual = sum(float(p['valor']) for p in parcelas_atual)
+            total_nova = sum(float(p['valor']) for p in parcelas_nova)
+            juros_atual = sum(float(p['juros']) for p in parcelas_atual)
+            juros_nova = sum(float(p['juros']) for p in parcelas_nova)
+
+            parcela_atual = float(parcelas_atual[0]['valor'])
+            parcela_nova = float(parcelas_nova[0]['valor'])
+            economia_mensal = parcela_atual - parcela_nova
+            economia_total = total_atual - total_nova
+
+            passo = max(1, max(prazo_restante, prazo_novo) // 60)
+            indices_atual = list(range(0, prazo_restante, passo))
+            indices_nova = list(range(0, prazo_novo, passo))
+            chart_labels = [parcelas_atual[i]['numero'] for i in indices_atual if i < len(parcelas_atual)]
+            chart_atual = [float(parcelas_atual[i]['saldo_devedor']) for i in indices_atual if i < len(parcelas_atual)]
+            chart_nova_raw = [float(parcelas_nova[i]['saldo_devedor']) for i in indices_nova if i < len(parcelas_nova)]
+
+            if len(chart_nova_raw) < len(chart_labels):
+                chart_nova_raw += [0] * (len(chart_labels) - len(chart_nova_raw))
+
+            resultado = {
+                'sistema': sistema,
+                'saldo_devedor': f'{saldo_devedor:.2f}',
+                'taxa_atual': f'{taxa_atual:.4f}',
+                'taxa_nova': f'{taxa_nova:.4f}',
+                'prazo_restante': prazo_restante,
+                'prazo_novo': prazo_novo,
+                'parcela_atual': f'{parcela_atual:.2f}',
+                'parcela_nova': f'{parcela_nova:.2f}',
+                'economia_mensal': f'{economia_mensal:.2f}',
+                'economia_total': f'{economia_total:.2f}',
+                'total_atual': f'{total_atual:.2f}',
+                'total_nova': f'{total_nova:.2f}',
+                'juros_atual': f'{juros_atual:.2f}',
+                'juros_nova': f'{juros_nova:.2f}',
+                'economia_juros': f'{juros_atual - juros_nova:.2f}',
+                'economia_pct': f'{(economia_total / total_atual * 100):.1f}' if total_atual > 0 else '0',
+                'vale_refin': economia_mensal > 0 or economia_total > 0,
+                'chart_labels': json.dumps(chart_labels),
+                'chart_atual': json.dumps(chart_atual),
+                'chart_nova': json.dumps(chart_nova_raw),
+            }
+        except (ValueError, TypeError) as e:
+            messages.error(request, f'Erro: {e}')
+
+    return render(request, 'simulador/refinanciamento.html', {'resultado': resultado})
+
+
+# ── Relatório Gerencial PDF ────────────────────────────────────────────────────
+
+@staff_required
+def relatorio_pdf(request):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    qs = Simulation.objects.select_related('usuario').all()
+    total = qs.count()
+    volume = float(qs.aggregate(total=Sum('valor_imovel'))['total'] or 0)
+    aprovados = qs.filter(status='aprovado').count()
+    ticket_medio = volume / total if total > 0 else 0
+    sac_count = qs.filter(sistema='SAC').count()
+    price_count = qs.filter(sistema='PRICE').count()
+    status_qs = qs.values('status').annotate(n=Count('status'))
+    status_map = dict(Simulation.STATUS_CHOICES)
+
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4,
+                            leftMargin=2*cm, rightMargin=2*cm,
+                            topMargin=2*cm, bottomMargin=2*cm)
+
+    styles = getSampleStyleSheet()
+    azul = colors.HexColor('#1a3c5e')
+    azul_claro = colors.HexColor('#2e86c1')
+    cinza = colors.HexColor('#f0f4f8')
+
+    titulo_style = ParagraphStyle('titulo', parent=styles['Title'],
+                                   textColor=azul, fontSize=20, spaceAfter=4)
+    sub_style = ParagraphStyle('sub', parent=styles['Normal'],
+                                textColor=azul_claro, fontSize=10, spaceAfter=12)
+    h2_style = ParagraphStyle('h2', parent=styles['Heading2'],
+                               textColor=azul, fontSize=13, spaceBefore=16, spaceAfter=6)
+
+    story = [
+        Paragraph('Relatório Gerencial', titulo_style),
+        Paragraph(f'Emitido em {datetime.date.today().strftime("%d/%m/%Y")} por {request.user.get_full_name() or request.user.username}', sub_style),
+        HRFlowable(width='100%', thickness=1, color=azul_claro, spaceAfter=12),
+        Spacer(1, 0.2*cm),
+    ]
+
+    story.append(Paragraph('Indicadores Gerais', h2_style))
+    kpis = [
+        ['Métrica', 'Valor'],
+        ['Total de Simulações', str(total)],
+        ['Volume Total (Imóveis)', f'R$ {volume:,.2f}'],
+        ['Ticket Médio', f'R$ {ticket_medio:,.2f}'],
+        ['Aprovadas', f'{aprovados} ({(aprovados/total*100):.1f}%)' if total else '0'],
+        ['Sistema SAC', str(sac_count)],
+        ['Sistema PRICE', str(price_count)],
+    ]
+    t_kpi = Table(kpis, colWidths=[9*cm, 9*cm])
+    t_kpi.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), azul),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BACKGROUND', (0, 1), (0, -1), cinza),
+        ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
+        ('TEXTCOLOR', (0, 1), (0, -1), azul),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f8fafc')]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+        ('PADDING', (0, 0), (-1, -1), 7),
+    ]))
+    story += [t_kpi, Spacer(1, 0.4*cm)]
+
+    story.append(Paragraph('Distribuição por Status', h2_style))
+    status_rows = [['Status', 'Quantidade', '% do Total']]
+    for s in status_qs.order_by('-n'):
+        pct = s['n'] / total * 100 if total else 0
+        status_rows.append([status_map.get(s['status'], s['status']), str(s['n']), f'{pct:.1f}%'])
+    t_status = Table(status_rows, colWidths=[8*cm, 5*cm, 5*cm])
+    t_status.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), azul),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f7ff')]),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#dee2e6')),
+        ('PADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story += [t_status, Spacer(1, 0.4*cm)]
+
+    story.append(Paragraph('Últimas 20 Simulações', h2_style))
+    recentes = qs.order_by('-criado_em')[:20]
+    cab = [['Cliente', 'Usuário', 'Imóvel (R$)', 'Sistema', 'Status', 'Data']]
+    linhas = cab + [
+        [s.cliente, s.usuario.username,
+         f'{float(s.valor_imovel):,.0f}', s.sistema,
+         status_map.get(s.status, s.status),
+         s.criado_em.strftime('%d/%m/%Y')]
+        for s in recentes
+    ]
+    t_rec = Table(linhas, colWidths=[4*cm, 3*cm, 3.5*cm, 2*cm, 2.5*cm, 2.5*cm])
+    t_rec.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), azul),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f0f7ff')]),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#dee2e6')),
+        ('PADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(t_rec)
+
+    doc.build(story)
+    buffer.seek(0)
+    nome = f'relatorio_gerencial_{datetime.date.today().strftime("%Y%m%d")}.pdf'
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{nome}"'
+    return response
+
+
+# ── Taxas BCB ──────────────────────────────────────────────────────────────────
+
+@login_required
+def taxas_bcb(request):
+    selic = _bcb_fetch(432)
+    ipca = _bcb_fetch(13522)
+    cdi = _bcb_fetch(4389)
+    from django.http import JsonResponse
+    return JsonResponse({
+        'selic': selic,
+        'ipca': ipca,
+        'cdi': cdi,
+        'atualizado_em': datetime.datetime.now().strftime('%H:%M:%S'),
+    })
+
+
+# ── API REST ────────────────────────────────────────────────────────────────────
+
+@login_required
+@require_POST
+def api_simular(request):
+    from django.http import JsonResponse
+    try:
+        data = json.loads(request.body)
+        valor_financiado = float(data.get('valor_financiado', 0))
+        taxa_juros = float(data.get('taxa_juros', 0))
+        prazo_meses = int(data.get('prazo_meses', 0))
+        sistema = data.get('sistema', 'SAC').upper()
+        mip_mensal = float(data.get('mip_mensal', 0))
+        dfi_mensal = float(data.get('dfi_mensal', 0))
+        valor_imovel = float(data.get('valor_imovel', valor_financiado))
+
+        if valor_financiado <= 0 or taxa_juros <= 0 or prazo_meses <= 0:
+            return JsonResponse({'erro': 'Parâmetros inválidos.'}, status=400)
+
+        fn = calcular_sac if sistema == 'SAC' else calcular_price
+        parcelas = fn(valor_financiado, taxa_juros, prazo_meses, mip_mensal, dfi_mensal, valor_imovel)
+        total_pago = sum(float(p['valor']) for p in parcelas)
+
+        return JsonResponse({
+            'sistema': sistema,
+            'valor_financiado': valor_financiado,
+            'taxa_juros_mensal': taxa_juros,
+            'prazo_meses': prazo_meses,
+            'primeira_parcela': parcelas[0]['valor'] if parcelas else '0.00',
+            'ultima_parcela': parcelas[-1]['valor'] if parcelas else '0.00',
+            'total_pago': f'{total_pago:.2f}',
+            'total_juros': f'{total_pago - valor_financiado:.2f}',
+            'parcelas': parcelas,
+        })
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        return JsonResponse({'erro': str(e)}, status=400)
+
+
+@login_required
+@require_POST
+def api_oraculo(request):
+    from django.http import JsonResponse
+    try:
+        data = json.loads(request.body)
+        renda = float(data.get('renda', 0))
+        entrada = float(data.get('entrada', 0))
+        prazo_anos = int(data.get('prazo_anos', 30))
+        taxa_anual = float(data.get('taxa_anual', 9.99))
+        comprometimento = float(data.get('comprometimento', 30))
+
+        if renda <= 0:
+            return JsonResponse({'erro': 'Renda deve ser maior que zero.'}, status=400)
+
+        margem_parcela = renda * (comprometimento / 100)
+        taxa_mensal = (taxa_anual / 100) / 12
+        meses = prazo_anos * 12
+        valor_financiavel = margem_parcela * ((1 - (1 + taxa_mensal) ** (-meses)) / taxa_mensal)
+        poder_compra = valor_financiavel + entrada
+
+        return JsonResponse({
+            'poder_compra': round(poder_compra, 2),
+            'valor_financiavel': round(valor_financiavel, 2),
+            'margem_parcela': round(margem_parcela, 2),
+        })
+    except (ValueError, TypeError, json.JSONDecodeError) as e:
+        return JsonResponse({'erro': str(e)}, status=400)

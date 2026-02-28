@@ -29,6 +29,7 @@ class Simulation(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='novo')
     observacoes = models.TextField(blank=True, default='')
     share_token = models.UUIDField(null=True, blank=True, default=None, unique=True)
+    tags = models.CharField(max_length=200, blank=True, default='')
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -42,3 +43,7 @@ class Simulation(models.Model):
     @property
     def valor_financiado(self):
         return self.valor_imovel - self.entrada
+
+    @property
+    def tags_lista(self):
+        return [t.strip() for t in self.tags.split(',') if t.strip()] if self.tags else []
