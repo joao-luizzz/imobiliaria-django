@@ -172,7 +172,7 @@
                             <td class="small">{{ sim.usuario.username }}</td>
                         {% endif %}
                         <td class="fw-semibold">
-                            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="text-decoration-none text-dark">
+                            <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}" class="text-decoration-none text-body">
                                 {{ sim.cliente }}
                             </a>
                             {% if sim.tags_lista %}

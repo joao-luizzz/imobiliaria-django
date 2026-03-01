@@ -45,7 +45,7 @@
                     {{ request.user.username|slice:":2"|upper }}
                 </div>
                 <div>
-                    <div class="fw-700 fs-5 text-dark fw-bold">{{ request.user.username }}</div>
+                    <div class="fw-700 fs-5 text-body fw-bold">{{ request.user.username }}</div>
                     <div class="text-muted small">
                         {% if request.user.is_staff %}
                         <span class="badge badge-admin">Administrador</span>

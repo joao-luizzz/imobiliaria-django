@@ -109,7 +109,7 @@
                     {% for cliente in page_obj %}
                     <tr>
                         <td class="fw-semibold">
-                            <a href="{% url 'simulador:cliente_detalhe' cliente.pk %}" class="text-decoration-none text-dark">
+                            <a href="{% url 'simulador:cliente_detalhe' cliente.pk %}" class="text-decoration-none text-body">
                                 <i class="bi bi-person-circle me-1 text-muted"></i>{{ cliente.nome }}
                             </a>
                         </td>
