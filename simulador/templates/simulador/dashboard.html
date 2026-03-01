@@ -15,13 +15,18 @@
         display: flex; align-items: center; gap: 16px;
     }
     .kpi-main.azul   { background: linear-gradient(135deg, #1a3c5e, #2e86c1); }
-    .kpi-main.verde  { background: linear-gradient(135deg, #065f46, #059669); }
-    .kpi-main.roxo   { background: linear-gradient(135deg, #4c1d95, #7c3aed); }
-    .kpi-main.laranja{ background: linear-gradient(135deg, #92400e, #d97706); }
+    .kpi-main.ciano  { background: linear-gradient(135deg, #0e4d64, #0891b2); }
+    .kpi-main.royal  { background: linear-gradient(135deg, #1e3a8a, #3b82f6); }
+    .kpi-main.indigo { background: linear-gradient(135deg, #2e1065, #7c3aed); }
     .kpi-main-icon  { font-size: 2.4rem; opacity: 0.8; flex-shrink: 0; }
     .kpi-main-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-bottom: 4px; }
-    .kpi-main-value { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+    .kpi-main-value {
+        font-size: 1.7rem; font-weight: 800; line-height: 1.1;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     .kpi-main-sub   { font-size: 0.78rem; opacity: 0.75; margin-top: 2px; }
+    /* allow flex text container to shrink */
+    .kpi-main > div { flex: 1; min-width: 0; }
 
     /* Stats secundários */
     .stats-row {
@@ -54,7 +59,13 @@
     }
 
     /* Recentes */
-    .recente-badge { font-size: 0.72rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; }
+    .recente-badge { font-size: 0.72rem; padding: 3px 8px; border-radius: 20px; font-weight: 600; color: white; }
+    .badge-sac        { background-color: #3b82f6; }
+    .badge-price      { background-color: #8b5cf6; }
+    .badge-novo       { background-color: #6c757d; }
+    .badge-em_analise { background-color: #f59e0b; }
+    .badge-aprovado   { background-color: #10b981; }
+    .badge-reprovado  { background-color: #ef4444; }
     [data-bs-theme="dark"] .recente-table td { color: #cbd5e1; }
 
     .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
@@ -84,16 +95,16 @@
         </div>
     </div>
     <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-main verde">
+        <div class="kpi-main ciano">
             <i class="bi bi-currency-dollar kpi-main-icon"></i>
             <div>
                 <div class="kpi-main-label">Volume potencial</div>
-                <div class="kpi-main-value" style="font-size:1.35rem;">R$ {{ volume|floatformat:2 }}</div>
+                <div class="kpi-main-value">R$ {{ volume|brl }}</div>
             </div>
         </div>
     </div>
     <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-main roxo">
+        <div class="kpi-main royal">
             <i class="bi bi-check-circle-fill kpi-main-icon"></i>
             <div>
                 <div class="kpi-main-label">Aprovados</div>
@@ -103,11 +114,11 @@
         </div>
     </div>
     <div class="col-12 col-sm-6 col-xl-3">
-        <div class="kpi-main laranja">
+        <div class="kpi-main indigo">
             <i class="bi bi-tags kpi-main-icon"></i>
             <div>
                 <div class="kpi-main-label">Ticket médio</div>
-                <div class="kpi-main-value" style="font-size:1.35rem;">R$ {{ ticket_medio|floatformat:0 }}</div>
+                <div class="kpi-main-value">R$ {{ ticket_medio|brl }}</div>
             </div>
         </div>
     </div>
@@ -201,7 +212,7 @@
                         <td class="ps-3 text-muted">{{ sim.pk }}</td>
                         <td class="fw-semibold">{{ sim.cliente }}</td>
                         {% if request.user.is_staff %}<td class="text-muted">{{ sim.usuario.username }}</td>{% endif %}
-                        <td>R$ {{ sim.valor_imovel|floatformat:2 }}</td>
+                        <td>R$ {{ sim.valor_imovel|brl }}</td>
                         <td><span class="recente-badge {% if sim.sistema == 'SAC' %}badge-sac{% else %}badge-price{% endif %}">{{ sim.sistema }}</span></td>
                         <td><span class="recente-badge badge-{{ sim.status }}">{{ sim.get_status_display }}</span></td>
                         <td class="pe-3 text-muted">{{ sim.criado_em|date:"d/m/Y" }}</td>
