@@ -123,6 +123,10 @@
     /* Loading spinner overlay on card */
     .sim-card.loading { opacity: 0.5; pointer-events: none; }
 
+    /* Sistema badges */
+    .badge-sac   { background-color: #3b82f6 !important; }
+    .badge-price { background-color: #8b5cf6 !important; }
+
     /* Scrollbar inside pipeline */
     .pipeline-wrapper::-webkit-scrollbar { height: 6px; }
     .pipeline-wrapper::-webkit-scrollbar-track { background: transparent; }
@@ -141,7 +145,10 @@
         <span class="badge bg-{{ col.cor }} rounded-pill" id="badge-count-{{ key }}">{{ col.cards|length }}</span>
     </div>
     {% endfor %}
-    <div class="ms-auto">
+    <div class="ms-auto d-flex align-items-center gap-3">
+        <span class="text-muted small d-none d-md-inline">
+            <i class="bi bi-cursor me-1 opacity-50"></i>Arraste os cards para mover entre colunas
+        </span>
         <a href="{% url 'simulador:historico' %}" class="btn btn-sm btn-outline-secondary">
             <i class="bi bi-clock-history me-1"></i>Ver histórico completo
         </a>
@@ -184,9 +191,7 @@
                     </div>
                     <div class="sim-meta">
                         <span><i class="bi bi-calendar3 me-1"></i>{{ sim.criado_em|date:"d/m/Y" }}</span>
-                        <span class="badge" style="font-size:0.68rem;
-                            {% if sim.sistema == 'SAC' %}background:#3b82f6;{% else %}background:#8b5cf6;{% endif %}
-                            color:white;">{{ sim.sistema }}</span>
+                        <span class="badge {% if sim.sistema == 'SAC' %}badge-sac{% else %}badge-price{% endif %}" style="font-size:0.68rem;">{{ sim.sistema }}</span>
                         <a href="{% url 'simulador:detalhe_simulacao' sim.pk %}"
                            class="ms-auto text-muted"
                            title="Ver detalhes"

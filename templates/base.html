@@ -146,6 +146,16 @@
         /* detail page */
         [data-bs-theme="dark"] .info-grid dd { color: #93c5fd; }
         /* sidebar stays dark — no change needed */
+        /* table-light thead in dark mode */
+        [data-bs-theme="dark"] thead.table-light th,
+        [data-bs-theme="dark"] .table-light > thead th {
+            background-color: #1e293b !important;
+            color: #e2e8f0 !important;
+            border-bottom-color: #334155 !important;
+        }
+        [data-bs-theme="dark"] .table-light {
+            --bs-table-bg: transparent;
+        }
 
         /* ── Print mode ── */
         @media print {

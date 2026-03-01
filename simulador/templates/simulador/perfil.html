@@ -29,6 +29,8 @@
         font-weight: 700;
         display: flex; align-items: center; justify-content: center;
     }
+    .badge-admin    { background-color: #1d4ed8 !important; }
+    .badge-corretor { background-color: #0d9488 !important; }
 </style>
 {% endblock %}
 
@@ -46,9 +48,9 @@
                     <div class="fw-700 fs-5 text-dark fw-bold">{{ request.user.username }}</div>
                     <div class="text-muted small">
                         {% if request.user.is_staff %}
-                        <span class="badge" style="background:#1d4ed8;">Administrador</span>
+                        <span class="badge badge-admin">Administrador</span>
                         {% else %}
-                        <span class="badge" style="background:#0d9488;">Corretor</span>
+                        <span class="badge badge-corretor">Corretor</span>
                         {% endif %}
                     </div>
                     <div class="text-muted small mt-1">
@@ -79,7 +81,7 @@
                             <input type="text" name="first_name" class="form-control"
                                    placeholder="ex: João"
                                    value="{{ form_data.first_name }}"
-                                   maxlength="150">
+                                   maxlength="150" autofocus>
                         </div>
 
                         <div class="col-12 col-md-6">
@@ -123,8 +125,7 @@
 
                         <!-- Submit -->
                         <div class="col-12 d-flex justify-content-end mt-2">
-                            <button type="submit" class="btn btn-primary rounded-pill px-4"
-                                style="background:linear-gradient(135deg,#1a3c5e,#2e86c1); border:none;">
+                            <button type="submit" class="btn btn-primary rounded-pill px-4">
                                 <i class="bi bi-check-lg me-1"></i>Salvar Alterações
                             </button>
                         </div>

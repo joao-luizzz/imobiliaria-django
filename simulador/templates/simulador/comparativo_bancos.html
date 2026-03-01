@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load static simulador_extras %}
 {% block title %}Comparativo de Bancos{% endblock %}
 {% block page_title %}Comparativo de Bancos{% endblock %}
 {% block extra_css %}
@@ -16,7 +16,7 @@
           <div class="row g-3">
             <div class="col-md-4">
               <label class="form-label">Valor Financiado (R$)</label>
-              <input type="number" class="form-control" name="valor_financiado" step="0.01" min="1" value="{{ resultado.valor_financiado|default:'' }}" required>
+              <input type="number" class="form-control" name="valor_financiado" step="0.01" min="1" value="{{ resultado.valor_financiado|default:'' }}" required autofocus>
             </div>
             <div class="col-md-4">
               <label class="form-label">Prazo (meses)</label>
@@ -62,9 +62,9 @@
                 </td>
                 <td class="text-end">{{ b.taxa_anual }}% a.a.</td>
                 <td class="text-end">{{ b.taxa_mensal }}% a.m.</td>
-                <td class="text-end">R$ {{ b.primeira_parcela|floatformat:2 }}</td>
-                <td class="text-end">R$ {{ b.total_pago|floatformat:2 }}</td>
-                <td class="text-end">R$ {{ b.total_juros|floatformat:2 }}</td>
+                <td class="text-end">R$ {{ b.primeira_parcela|brl }}</td>
+                <td class="text-end">R$ {{ b.total_pago|brl }}</td>
+                <td class="text-end">R$ {{ b.total_juros|brl }}</td>
               </tr>
               {% endfor %}
             </tbody>

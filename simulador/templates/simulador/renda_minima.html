@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load simulador_extras %}
 {% block title %}Renda Mínima Necessária{% endblock %}
 {% block page_title %}Renda Mínima Necessária{% endblock %}
 {% block content %}
@@ -12,7 +13,7 @@
           <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label">Valor do Imóvel (R$)</label>
-              <input type="number" class="form-control" name="valor_imovel" step="0.01" min="1" value="{{ resultado.valor_imovel|default:'' }}" required>
+              <input type="number" class="form-control" name="valor_imovel" step="0.01" min="1" value="{{ resultado.valor_imovel|default:'' }}" required autofocus>
             </div>
             <div class="col-md-6">
               <label class="form-label">Entrada (R$)</label>
@@ -46,13 +47,13 @@
           <div class="col-sm-6">
             <div class="border rounded p-3 text-center bg-light">
               <div class="text-muted small">1ª Parcela (PRICE)</div>
-              <div class="fw-bold fs-4 text-danger">R$ {{ resultado.primeira_parcela|floatformat:2 }}</div>
+              <div class="fw-bold fs-4 text-danger">R$ {{ resultado.primeira_parcela|brl }}</div>
             </div>
           </div>
           <div class="col-sm-6">
             <div class="border rounded p-3 text-center bg-primary text-white">
               <div class="small opacity-75">Renda Mínima ({{ resultado.comprometimento }}%)</div>
-              <div class="fw-bold fs-4">R$ {{ resultado.renda_minima|floatformat:2 }}</div>
+              <div class="fw-bold fs-4">R$ {{ resultado.renda_minima|brl }}</div>
             </div>
           </div>
         </div>
@@ -64,7 +65,7 @@
               {% for c in resultado.cenarios %}
               <tr {% if c.comprometimento == resultado.comprometimento %}class="table-primary fw-bold"{% endif %}>
                 <td>{{ c.comprometimento }}%</td>
-                <td>R$ {{ c.renda_minima|floatformat:2 }}</td>
+                <td>R$ {{ c.renda_minima|brl }}</td>
               </tr>
               {% endfor %}
             </tbody>
@@ -72,7 +73,7 @@
         </div>
         <hr>
         <dl class="row mb-0">
-          <dt class="col-sm-6">Valor Financiado:</dt><dd class="col-sm-6">R$ {{ resultado.valor_financiado|floatformat:2 }}</dd>
+          <dt class="col-sm-6">Valor Financiado:</dt><dd class="col-sm-6">R$ {{ resultado.valor_financiado|brl }}</dd>
           <dt class="col-sm-6">Taxa:</dt><dd class="col-sm-6">{{ resultado.taxa_juros }}% a.m.</dd>
           <dt class="col-sm-6">Prazo:</dt><dd class="col-sm-6">{{ resultado.prazo_meses }} meses</dd>
         </dl>

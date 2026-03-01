@@ -11,7 +11,7 @@
           {% csrf_token %}
           <div class="mb-3">
             <label class="form-label">Idade do Proponente (anos)</label>
-            <input type="number" class="form-control" name="idade" min="18" max="80" value="{{ resultado.idade|default:'' }}" required placeholder="Ex: 35">
+            <input type="number" class="form-control" name="idade" min="18" max="80" value="{{ resultado.idade|default:'' }}" required placeholder="Ex: 35" autofocus>
           </div>
           <div class="mb-3">
             <label class="form-label">Prazo Desejado (meses)</label>
