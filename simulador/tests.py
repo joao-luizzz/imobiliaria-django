@@ -422,3 +422,440 @@ class ViewsNovosTest(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = json.loads(resp.content)
         self.assertIn('poder_compra', data)
+
+
+# ── Features novas ─────────────────────────────────────────────────────────────
+
+class FerramentasAnaliseTest(TestCase):
+    """Grupo A: comparativo bancos, MCMV, renda mínima, prazo idade, IPCA+"""
+
+    def setUp(self):
+        self.user = User.objects.create_user('corretor3', password='senha123')
+        self.client.force_login(self.user)
+
+    # Comparativo de bancos
+    def test_comparativo_bancos_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:comparativo_bancos')).status_code, 200)
+
+    def test_comparativo_bancos_post(self):
+        resp = self.client.post(reverse('simulador:comparativo_bancos'), {
+            'valor_financiado': '200000', 'prazo_meses': '240', 'sistema': 'SAC',
+        })
+        self.assertEqual(resp.status_code, 200)
+        self.assertIsNotNone(resp.context['resultado'])
+        self.assertIn('bancos', resp.context['resultado'])
+        self.assertEqual(len(resp.context['resultado']['bancos']), 5)
+
+    def test_comparativo_bancos_melhor_e_menor_taxa(self):
+        resp = self.client.post(reverse('simulador:comparativo_bancos'), {
+            'valor_financiado': '300000', 'prazo_meses': '360', 'sistema': 'PRICE',
+        })
+        resultado = resp.context['resultado']
+        self.assertEqual(resultado['melhor']['nome'], resultado['bancos'][0]['nome'])
+
+    # MCMV
+    def test_mcmv_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:mcmv')).status_code, 200)
+
+    def test_mcmv_faixa1(self):
+        resp = self.client.post(reverse('simulador:mcmv'), {
+            'renda': '2000', 'valor_imovel': '150000', 'entrada': '20000', 'prazo_anos': '30',
+        })
+        self.assertEqual(resp.status_code, 200)
+        resultado = resp.context['resultado']
+        self.assertIn('Faixa 1', resultado['faixa'])
+        self.assertGreater(float(resultado['subsidio']), 0)
+
+    def test_mcmv_faixa3_sem_subsidio(self):
+        resp = self.client.post(reverse('simulador:mcmv'), {
+            'renda': '11000', 'valor_imovel': '400000', 'entrada': '80000', 'prazo_anos': '30',
+        })
+        resultado = resp.context['resultado']
+        self.assertIn('Faixa 3', resultado['faixa'])
+        self.assertEqual(float(resultado['subsidio']), 0)
+
+    # Renda mínima
+    def test_renda_minima_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:renda_minima')).status_code, 200)
+
+    def test_renda_minima_post(self):
+        resp = self.client.post(reverse('simulador:renda_minima'), {
+            'valor_imovel': '300000', 'entrada': '60000',
+            'taxa_juros': '0.75', 'prazo_meses': '360', 'comprometimento': '30',
+        })
+        self.assertEqual(resp.status_code, 200)
+        resultado = resp.context['resultado']
+        self.assertIn('renda_minima', resultado)
+        self.assertGreater(float(resultado['renda_minima']), 0)
+        self.assertEqual(len(resultado['cenarios']), 3)
+
+    # Prazo por idade
+    def test_prazo_idade_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:prazo_idade')).status_code, 200)
+
+    def test_prazo_idade_sem_limitacao(self):
+        resp = self.client.post(reverse('simulador:prazo_idade'), {
+            'idade': '30', 'prazo_desejado': '360',
+        })
+        resultado = resp.context['resultado']
+        self.assertFalse(resultado['foi_limitado'])
+        self.assertEqual(resultado['prazo_efetivo'], 360)
+
+    def test_prazo_idade_com_limitacao(self):
+        resp = self.client.post(reverse('simulador:prazo_idade'), {
+            'idade': '55', 'prazo_desejado': '360',
+        })
+        resultado = resp.context['resultado']
+        self.assertTrue(resultado['foi_limitado'])
+        # prazo_max = (80*12+6) - (55*12) = 966 - 660 = 306
+        self.assertEqual(resultado['prazo_max'], 306)
+        self.assertEqual(resultado['prazo_efetivo'], 306)
+
+    # Financiamento IPCA+
+    def test_financiamento_ipca_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:financiamento_ipca')).status_code, 200)
+
+    def test_financiamento_ipca_post_tres_cenarios(self):
+        resp = self.client.post(reverse('simulador:financiamento_ipca'), {
+            'valor_financiado': '200000', 'prazo_meses': '240',
+            'spread': '3.5', 'ipca_projetado': '4.5',
+        })
+        self.assertEqual(resp.status_code, 200)
+        resultado = resp.context['resultado']
+        self.assertIn('base', resultado)
+        self.assertIn('otimista', resultado)
+        self.assertIn('pessimista', resultado)
+        # pessimista deve ter taxa maior que base
+        self.assertGreater(resultado['pessimista']['taxa_anual'], resultado['base']['taxa_anual'])
+        self.assertGreater(resultado['base']['taxa_anual'], resultado['otimista']['taxa_anual'])
+
+    # Redirecionamento sem login
+    def test_ferramentas_redirecionam_sem_login(self):
+        self.client.logout()
+        urls = [
+            'simulador:comparativo_bancos', 'simulador:mcmv',
+            'simulador:renda_minima', 'simulador:prazo_idade',
+            'simulador:financiamento_ipca',
+        ]
+        for name in urls:
+            with self.subTest(url=name):
+                self.assertEqual(self.client.get(reverse(name)).status_code, 302)
+
+
+class ClientesTest(TestCase):
+    """Grupo B: CRUD de clientes"""
+
+    def setUp(self):
+        from .models import Cliente
+        self.user = User.objects.create_user('corretor4', password='senha123')
+        self.outro = User.objects.create_user('outro4', password='senha123')
+        self.client.force_login(self.user)
+        self.Cliente = Cliente
+
+    def _criar_cliente(self, nome='Ana Lima', usuario=None):
+        return self.Cliente.objects.create(
+            usuario=usuario or self.user,
+            nome=nome, email='ana@teste.com', telefone='11999999999',
+        )
+
+    def test_lista_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:clientes_lista')).status_code, 200)
+
+    def test_lista_exibe_apenas_proprios(self):
+        self._criar_cliente('Meu')
+        self._criar_cliente('Outro', usuario=self.outro)
+        resp = self.client.get(reverse('simulador:clientes_lista'))
+        nomes = [c.nome for c in resp.context['page_obj']]
+        self.assertIn('Meu', nomes)
+        self.assertNotIn('Outro', nomes)
+
+    def test_criar_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:cliente_criar')).status_code, 200)
+
+    def test_criar_post_valido(self):
+        self.client.post(reverse('simulador:cliente_criar'), {
+            'nome': 'João Novo', 'email': 'joao@teste.com',
+            'telefone': '11912345678', 'cpf': '', 'renda_mensal': '5000', 'observacoes': '',
+        })
+        self.assertTrue(self.Cliente.objects.filter(nome='João Novo', usuario=self.user).exists())
+
+    def test_criar_sem_nome_nao_salva(self):
+        self.client.post(reverse('simulador:cliente_criar'), {'nome': ''})
+        self.assertEqual(self.Cliente.objects.count(), 0)
+
+    def test_editar_post(self):
+        c = self._criar_cliente()
+        self.client.post(reverse('simulador:cliente_editar', args=[c.pk]), {
+            'nome': 'Ana Lima Editada', 'email': 'ana@teste.com',
+            'telefone': '11999999999', 'cpf': '', 'renda_mensal': '', 'observacoes': '',
+        })
+        c.refresh_from_db()
+        self.assertEqual(c.nome, 'Ana Lima Editada')
+
+    def test_editar_de_outro_retorna_404(self):
+        c = self._criar_cliente(usuario=self.outro)
+        resp = self.client.get(reverse('simulador:cliente_editar', args=[c.pk]))
+        self.assertEqual(resp.status_code, 404)
+
+    def test_excluir_post(self):
+        c = self._criar_cliente()
+        self.client.post(reverse('simulador:cliente_excluir', args=[c.pk]))
+        self.assertFalse(self.Cliente.objects.filter(pk=c.pk).exists())
+
+    def test_excluir_de_outro_retorna_404(self):
+        c = self._criar_cliente(usuario=self.outro)
+        self.client.post(reverse('simulador:cliente_excluir', args=[c.pk]))
+        self.assertTrue(self.Cliente.objects.filter(pk=c.pk).exists())
+
+    def test_detalhe_get(self):
+        c = self._criar_cliente()
+        self.assertEqual(self.client.get(reverse('simulador:cliente_detalhe', args=[c.pk])).status_code, 200)
+
+    def test_redireciona_sem_login(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('simulador:clientes_lista')).status_code, 302)
+
+
+class PipelineTest(TestCase):
+    """Grupo B: Pipeline Kanban"""
+
+    def setUp(self):
+        self.user = User.objects.create_user('corretor5', password='senha123')
+        self.client.force_login(self.user)
+
+    def _make_sim(self, status='novo'):
+        return Simulation.objects.create(
+            usuario=self.user, cliente='Pipeline Teste',
+            valor_imovel=200000, entrada=40000,
+            taxa_juros='0.75', prazo_meses=240, sistema='SAC', status=status,
+        )
+
+    def test_pipeline_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:pipeline')).status_code, 200)
+
+    def test_pipeline_exibe_colunas(self):
+        resp = self.client.get(reverse('simulador:pipeline'))
+        self.assertIn('colunas', resp.context)
+        self.assertIn('novo', resp.context['colunas'])
+        self.assertIn('aprovado', resp.context['colunas'])
+
+    def test_mover_card_valido(self):
+        sim = self._make_sim('novo')
+        resp = self.client.post(
+            reverse('simulador:mover_card', args=[sim.pk]),
+            data=json.dumps({'status': 'em_analise'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 200)
+        sim.refresh_from_db()
+        self.assertEqual(sim.status, 'em_analise')
+
+    def test_mover_card_status_invalido(self):
+        sim = self._make_sim('novo')
+        self.client.post(
+            reverse('simulador:mover_card', args=[sim.pk]),
+            data=json.dumps({'status': 'invalido_xyz'}),
+            content_type='application/json',
+        )
+        sim.refresh_from_db()
+        self.assertEqual(sim.status, 'novo')
+
+    def test_mover_card_de_outro_retorna_404(self):
+        outro = User.objects.create_user('outro5', password='senha')
+        sim = Simulation.objects.create(
+            usuario=outro, cliente='Outro', valor_imovel=100000, entrada=20000,
+            taxa_juros='0.75', prazo_meses=120, sistema='SAC',
+        )
+        resp = self.client.post(
+            reverse('simulador:mover_card', args=[sim.pk]),
+            data=json.dumps({'status': 'aprovado'}),
+            content_type='application/json',
+        )
+        self.assertEqual(resp.status_code, 404)
+
+    def test_pipeline_redireciona_sem_login(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('simulador:pipeline')).status_code, 302)
+
+
+class MetasTest(TestCase):
+    """Grupo B: Metas do corretor"""
+
+    def setUp(self):
+        from .models import MetaCorretor
+        self.user = User.objects.create_user('corretor6', password='senha123')
+        self.client.force_login(self.user)
+        self.MetaCorretor = MetaCorretor
+
+    def test_metas_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:metas')).status_code, 200)
+
+    def test_meta_criar_get(self):
+        self.assertEqual(self.client.get(reverse('simulador:meta_criar')).status_code, 200)
+
+    def test_meta_criar_post(self):
+        self.client.post(reverse('simulador:meta_criar'), {
+            'mes': '1', 'ano': '2026',
+            'meta_simulacoes': '20', 'meta_valor': '1000000',
+        })
+        self.assertTrue(self.MetaCorretor.objects.filter(usuario=self.user, mes=1, ano=2026).exists())
+
+    def test_meta_criar_duplicada_nao_cria(self):
+        self.MetaCorretor.objects.create(usuario=self.user, mes=3, ano=2026, meta_simulacoes=10)
+        self.client.post(reverse('simulador:meta_criar'), {
+            'mes': '3', 'ano': '2026', 'meta_simulacoes': '15', 'meta_valor': '0',
+        })
+        self.assertEqual(self.MetaCorretor.objects.filter(usuario=self.user, mes=3, ano=2026).count(), 1)
+
+    def test_meta_editar_post(self):
+        meta = self.MetaCorretor.objects.create(usuario=self.user, mes=4, ano=2026, meta_simulacoes=10)
+        self.client.post(reverse('simulador:meta_editar', args=[meta.pk]), {
+            'meta_simulacoes': '25', 'meta_valor': '500000',
+        })
+        meta.refresh_from_db()
+        self.assertEqual(meta.meta_simulacoes, 25)
+
+    def test_meta_excluir(self):
+        meta = self.MetaCorretor.objects.create(usuario=self.user, mes=5, ano=2026, meta_simulacoes=10)
+        self.client.post(reverse('simulador:meta_excluir', args=[meta.pk]))
+        self.assertFalse(self.MetaCorretor.objects.filter(pk=meta.pk).exists())
+
+    def test_meta_excluir_de_outro_retorna_404(self):
+        outro = User.objects.create_user('outro6', password='senha')
+        meta = self.MetaCorretor.objects.create(usuario=outro, mes=6, ano=2026, meta_simulacoes=5)
+        self.client.post(reverse('simulador:meta_excluir', args=[meta.pk]))
+        self.assertTrue(self.MetaCorretor.objects.filter(pk=meta.pk).exists())
+
+    def test_metas_redireciona_sem_login(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('simulador:metas')).status_code, 302)
+
+
+class AdminViewsTest(TestCase):
+    """Grupo C: logs de auditoria e relatório por corretor (staff only)"""
+
+    def setUp(self):
+        self.user = User.objects.create_user('corretor7', password='senha123')
+        self.staff = User.objects.create_user('admin7', password='senha123', is_staff=True)
+
+    def test_logs_requer_staff(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:logs_auditoria')).status_code, 302)
+
+    def test_logs_staff_ok(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse('simulador:logs_auditoria'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('page_obj', resp.context)
+
+    def test_logs_filtro_por_usuario(self):
+        from .models import AuditLog
+        AuditLog.objects.create(usuario=self.user, acao='Teste')
+        AuditLog.objects.create(usuario=self.staff, acao='Outro')
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse('simulador:logs_auditoria') + f'?usuario={self.user.username}')
+        logs = list(resp.context['page_obj'])
+        self.assertTrue(all(l.usuario == self.user for l in logs))
+
+    def test_relatorio_corretores_requer_staff(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(reverse('simulador:relatorio_corretores')).status_code, 302)
+
+    def test_relatorio_corretores_staff_ok(self):
+        self.client.force_login(self.staff)
+        resp = self.client.get(reverse('simulador:relatorio_corretores'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('usuarios', resp.context)
+
+    def test_audit_log_criado_ao_simular(self):
+        from .models import AuditLog
+        self.client.force_login(self.user)
+        self.client.post(reverse('simulador:simular'), {
+            'cliente': 'AuditTeste', 'valor_imovel': '300000', 'entrada': '60000',
+            'taxa_juros': '0.75', 'meses': '360', 'sistema': 'SAC',
+        })
+        self.assertTrue(AuditLog.objects.filter(usuario=self.user, acao='Criou simulação').exists())
+
+
+class TwoFATest(TestCase):
+    """Grupo D: setup 2FA e verificação com brute-force protection"""
+
+    def setUp(self):
+        from .models import UserProfile
+        self.user = User.objects.create_user('corretor8', password='senha123')
+        self.profile, _ = UserProfile.objects.get_or_create(user=self.user)
+        self.client.force_login(self.user)
+
+    def test_setup_2fa_get(self):
+        resp = self.client.get(reverse('simulador:setup_2fa'))
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('secret', resp.context)
+
+    def test_ativar_2fa_codigo_valido(self):
+        import pyotp
+        resp = self.client.get(reverse('simulador:setup_2fa'))
+        secret = self.client.session.get('_2fa_setup_secret')
+        self.assertIsNotNone(secret)
+        codigo = pyotp.TOTP(secret).now()
+        resp = self.client.post(reverse('simulador:setup_2fa'), {
+            'acao': 'ativar', 'codigo': codigo,
+        })
+        self.profile.refresh_from_db()
+        self.assertTrue(self.profile.totp_enabled)
+
+    def test_ativar_2fa_codigo_invalido(self):
+        self.client.get(reverse('simulador:setup_2fa'))
+        self.client.post(reverse('simulador:setup_2fa'), {
+            'acao': 'ativar', 'codigo': '000000',
+        })
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.totp_enabled)
+
+    def test_desativar_2fa(self):
+        import pyotp
+        secret = pyotp.random_base32()
+        self.profile.totp_secret = secret
+        self.profile.totp_enabled = True
+        self.profile.save()
+        session = self.client.session
+        session['_2fa_done'] = True
+        session.save()
+        self.client.post(reverse('simulador:setup_2fa'), {'acao': 'desativar'})
+        self.profile.refresh_from_db()
+        self.assertFalse(self.profile.totp_enabled)
+
+    def test_verificar_2fa_codigo_correto(self):
+        import pyotp
+        secret = pyotp.random_base32()
+        self.profile.totp_secret = secret
+        self.profile.totp_enabled = True
+        self.profile.save()
+        codigo = pyotp.TOTP(secret).now()
+        resp = self.client.post(reverse('simulador:verificar_2fa'), {'codigo': codigo})
+        self.assertEqual(resp.status_code, 302)
+        self.assertTrue(self.client.session.get('_2fa_done'))
+
+    def test_verificar_2fa_codigo_incorreto(self):
+        import pyotp
+        secret = pyotp.random_base32()
+        self.profile.totp_secret = secret
+        self.profile.totp_enabled = True
+        self.profile.save()
+        self.client.post(reverse('simulador:verificar_2fa'), {'codigo': '000000'})
+        self.assertFalse(self.client.session.get('_2fa_done', False))
+
+    def test_verificar_2fa_lockout_apos_5_tentativas(self):
+        import pyotp
+        secret = pyotp.random_base32()
+        self.profile.totp_secret = secret
+        self.profile.totp_enabled = True
+        self.profile.save()
+        for _ in range(5):
+            self.client.post(reverse('simulador:verificar_2fa'), {'codigo': '000000'})
+        # Na 6ª tentativa mesmo com código correto deve estar bloqueado
+        session = self.client.session
+        self.assertIn('_2fa_lockout_until', session)
+
+    def test_setup_2fa_requer_login(self):
+        self.client.logout()
+        self.assertEqual(self.client.get(reverse('simulador:setup_2fa')).status_code, 302)
