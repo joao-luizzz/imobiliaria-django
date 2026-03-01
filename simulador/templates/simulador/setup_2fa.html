@@ -45,7 +45,6 @@
         <form method="post">
           {% csrf_token %}
           <input type="hidden" name="acao" value="ativar">
-          <input type="hidden" name="secret" value="{{ secret }}">
           <div class="mb-3">
             <label class="form-label">Código de Verificação</label>
             <input type="text" class="form-control form-control-lg text-center"

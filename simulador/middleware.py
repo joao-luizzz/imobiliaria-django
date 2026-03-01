@@ -1,5 +1,6 @@
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.core.exceptions import ObjectDoesNotExist
 
 
 EXEMPT_PATHS = [
@@ -31,7 +32,7 @@ class TwoFactorMiddleware:
                         if profile.totp_enabled:
                             verify_url = reverse('simulador:verificar_2fa')
                             return redirect(f"{verify_url}?next={request.path}")
-                    except Exception:
+                    except (AttributeError, ObjectDoesNotExist):
                         pass
 
         return self.get_response(request)

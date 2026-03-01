@@ -2359,16 +2359,18 @@ def setup_2fa(request):
         acao = request.POST.get("acao", "")
 
         if acao == "ativar":
-            secret = request.POST.get("secret", "").strip()
+            # Read secret from session — never from a hidden form field
+            secret = request.session.get("_2fa_setup_secret", "")
             codigo = request.POST.get("codigo", "").strip()
             if not secret or not codigo:
-                messages.error(request, "Código inválido.")
+                messages.error(request, "Sessão expirada. Escaneie o QR code novamente.")
                 return redirect("simulador:setup_2fa")
             totp = pyotp.TOTP(secret)
             if totp.verify(codigo, valid_window=1):
                 profile.totp_secret = secret
                 profile.totp_enabled = True
                 profile.save()
+                request.session.pop("_2fa_setup_secret", None)
                 request.session["_2fa_done"] = True
                 registrar_log(request, "Ativou 2FA", "UserProfile", profile.pk)
                 messages.success(request, "Autenticação de dois fatores ativada com sucesso!")
@@ -2381,11 +2383,14 @@ def setup_2fa(request):
             profile.totp_enabled = False
             profile.totp_secret = ""
             profile.save()
+            request.session.pop("_2fa_setup_secret", None)
             registrar_log(request, "Desativou 2FA", "UserProfile", profile.pk)
             messages.success(request, "2FA desativado.")
             return redirect("simulador:perfil")
 
     novo_secret = pyotp.random_base32()
+    # Store in session — not exposed in the HTML form
+    request.session["_2fa_setup_secret"] = novo_secret
     totp = pyotp.TOTP(novo_secret)
     uri = totp.provisioning_uri(
         name=request.user.email or request.user.username,
@@ -2400,6 +2405,7 @@ def setup_2fa(request):
 
 def verificar_2fa(request):
     import pyotp
+    import time
     if not request.user.is_authenticated:
         return redirect("login")
     try:
@@ -2414,13 +2420,33 @@ def verificar_2fa(request):
     if request.session.get("_2fa_done"):
         return redirect("simulador:simular")
 
+    MAX_ATTEMPTS = 5
+    LOCKOUT_SECONDS = 900  # 15 minutes
+
+    # Check lockout
+    lockout_until = request.session.get("_2fa_lockout_until", 0)
+    if time.time() < lockout_until:
+        remaining = int((lockout_until - time.time()) / 60) + 1
+        messages.error(request, f"Muitas tentativas incorretas. Tente novamente em {remaining} minuto(s).")
+        return render(request, "simulador/verificar_2fa.html", {"locked": True})
+
     if request.method == "POST":
         codigo = request.POST.get("codigo", "").strip()
         totp = pyotp.TOTP(profile.totp_secret)
         if totp.verify(codigo, valid_window=1):
             request.session["_2fa_done"] = True
+            request.session.pop("_2fa_attempts", None)
+            request.session.pop("_2fa_lockout_until", None)
             next_url = request.GET.get("next") or "/"
             return redirect(next_url)
         else:
-            messages.error(request, "Código incorreto.")
+            attempts = request.session.get("_2fa_attempts", 0) + 1
+            request.session["_2fa_attempts"] = attempts
+            remaining = MAX_ATTEMPTS - attempts
+            if remaining <= 0:
+                request.session["_2fa_lockout_until"] = time.time() + LOCKOUT_SECONDS
+                request.session["_2fa_attempts"] = 0
+                messages.error(request, "Conta bloqueada por 15 minutos após múltiplas tentativas incorretas.")
+            else:
+                messages.error(request, f"Código incorreto. {remaining} tentativa(s) restante(s).")
     return render(request, "simulador/verificar_2fa.html")
