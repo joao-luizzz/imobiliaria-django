@@ -6,13 +6,14 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: Oráculo — uses design tokens */
     .poder-compra-card {
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        background: var(--gradient-primary);
         color: white;
-        border-radius: 16px;
+        border-radius: var(--radius-xl);
         padding: 36px;
         text-align: center;
-        box-shadow: 0 8px 30px rgba(26,60,94,0.3);
+        box-shadow: var(--shadow-lg);
         margin-bottom: 24px;
     }
     .poder-compra-card .label {
@@ -29,7 +30,7 @@
     }
     .kpi-mini {
         background: rgba(255,255,255,0.15);
-        border-radius: 10px;
+        border-radius: var(--radius-md);
         padding: 14px;
         text-align: center;
         margin-top: 16px;
@@ -38,28 +39,12 @@
     .kpi-mini .mini-valor { font-size: 1.2rem; font-weight: 700; margin-top: 2px; }
     .interpretacao-box {
         background: #f0f7ff;
-        border-left: 4px solid #2e86c1;
-        border-radius: 0 10px 10px 0;
+        border-left: 4px solid var(--color-primary-light);
+        border-radius: 0 var(--radius-md) var(--radius-md) 0;
         padding: 16px 20px;
-        color: #1a3c5e;
+        color: var(--color-primary);
         font-size: 0.92rem;
         margin-bottom: 0;
-    }
-    .form-label { font-weight: 500; color: #1a3c5e; }
-    .form-control:focus, .form-range:focus {
-        border-color: #2e86c1;
-        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
-    }
-    .range-value {
-        display: inline-block;
-        background: #1a3c5e;
-        color: white;
-        border-radius: 6px;
-        padding: 2px 10px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        min-width: 60px;
-        text-align: center;
     }
 
     /* ── Oráculo empty state ── */
@@ -173,9 +158,9 @@
 
     <!-- Formulário -->
     <div class="col-12 col-lg-5">
-        <div class="card" style="border:none; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,0.07);">
-            <div class="card-header py-3" style="background:linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:14px 14px 0 0; font-weight:600;">
-                <i class="bi bi-sliders me-2"></i>Parâmetros
+        <div class="card">
+            <div class="card-header py-3">
+                <i class="bi bi-sliders me-2" aria-hidden="true"></i>Parâmetros
             </div>
             <div class="card-body p-4">
                 <form method="POST">
@@ -237,8 +222,8 @@
 
                         <div class="col-12 mt-1">
                             <button type="submit" class="btn btn-primary w-100 rounded-pill"
-                                style="background:linear-gradient(135deg,#1a3c5e,#2e86c1); border:none; padding:10px;">
-                                <i class="bi bi-magic me-2"></i>Calcular Poder de Compra
+                                style="padding:10px;">
+                                <i class="bi bi-magic me-2" aria-hidden="true"></i>Calcular Poder de Compra
                             </button>
                         </div>
 
@@ -276,7 +261,7 @@
             </div>
         </div>
 
-        <div class="card" style="border:none; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,0.07);">
+        <div class="card">
             <div class="card-body p-4">
                 <p class="fw-semibold text-secondary small text-uppercase mb-2">
                     <i class="bi bi-info-circle me-1"></i> Interpretação

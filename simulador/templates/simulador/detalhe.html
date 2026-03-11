@@ -6,33 +6,26 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: Detail page — uses design tokens, badge styles from custom.css */
     .summary-card {
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        background: var(--gradient-primary);
         color: white;
-        border-radius: 16px;
+        border-radius: var(--radius-xl);
         padding: 32px;
         margin-bottom: 24px;
-        box-shadow: 0 8px 30px rgba(26,60,94,0.25);
+        box-shadow: var(--shadow-lg);
     }
     .kpi-box {
-        background: rgba(255,255,255,0.15);
-        border-radius: 10px;
+        background: rgba(255,255,255,0.13);
+        border-radius: var(--radius-md);
         padding: 14px;
         text-align: center;
+        backdrop-filter: blur(4px);
     }
     .kpi-box .label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
     .kpi-box .value { font-size: 1.15rem; font-weight: 700; margin-top: 3px; }
-    .info-grid dt { color: #64748b; font-size: 0.82rem; font-weight: 500; }
-    .info-grid dd { font-weight: 600; color: #1a3c5e; margin-bottom: 12px; }
-    .table thead th { background-color: #1a3c5e; color: white; font-weight: 500; text-align: center; }
-    .table tbody td { text-align: center; vertical-align: middle; }
-    .table tbody tr:hover { background-color: #eaf2fb; }
-    .badge-sac   { background-color: #3b82f6; }
-    .badge-price { background-color: #8b5cf6; }
-    .badge-novo       { background-color: #6c757d; }
-    .badge-em_analise { background-color: #f59e0b; }
-    .badge-aprovado   { background-color: #10b981; }
-    .badge-reprovado  { background-color: #ef4444; }
+    .info-grid dt { color: var(--color-text-muted); font-size: 0.82rem; font-weight: 500; }
+    .info-grid dd { font-weight: 600; color: var(--color-primary); margin-bottom: 12px; }
 </style>
 {% endblock %}
 
@@ -144,7 +137,7 @@
         <i class="bi bi-sticky me-2"></i>Anotações
     </div>
     <div class="card-body p-4">
-        <p class="mb-0" style="white-space: pre-wrap; color: #1a3c5e;">{{ sim.observacoes }}</p>
+        <p class="mb-0" style="white-space: pre-wrap; color: var(--color-primary);">{{ sim.observacoes }}</p>
     </div>
 </div>
 {% endif %}
@@ -152,8 +145,8 @@
 {% if sim.tags_lista %}
 <div class="d-flex flex-wrap gap-2 mb-4">
     {% for tag in sim.tags_lista %}
-    <span class="badge rounded-pill" style="background:#e0f2fe;color:#0369a1;font-size:0.82rem;padding:6px 12px;">
-        <i class="bi bi-tag me-1"></i>{{ tag }}
+    <span class="badge rounded-pill tag-badge" style="padding:6px 12px;font-size:0.82rem;">
+        <i class="bi bi-tag me-1" aria-hidden="true"></i>{{ tag }}
     </span>
     {% endfor %}
 </div>
@@ -317,6 +310,7 @@ new Chart(document.getElementById('chartSacPrice'), {
     },
     options: {
         responsive: true,
+        animation: { duration: 600 },
         plugins: {
             legend: { position: 'top' },
             tooltip: { callbacks: { label: ctx => ' R$ ' + ctx.parsed.y.toLocaleString('pt-BR', {minimumFractionDigits:2}) } }

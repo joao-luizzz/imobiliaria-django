@@ -5,31 +5,27 @@
 
 {% block extra_css %}
 <style>
-    .form-label { font-weight: 500; color: #1a3c5e; }
-    .form-control:focus {
-        border-color: #2e86c1;
-        box-shadow: 0 0 0 0.2rem rgba(46,134,193,0.25);
-    }
+    /* UI MELHORIA: uses design tokens; .form-label, .form-control:focus from custom.css */
     .section-title {
         font-size: 0.75rem;
         text-transform: uppercase;
         letter-spacing: 1.2px;
-        color: #94a3b8;
+        color: var(--color-text-muted);
         font-weight: 600;
         margin-bottom: 12px;
         padding-bottom: 6px;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--color-border);
     }
     .avatar-circle {
         width: 72px; height: 72px;
         border-radius: 50%;
-        background: linear-gradient(135deg,#1a3c5e,#2e86c1);
+        background: var(--gradient-primary);
         color: white;
         font-size: 1.8rem;
         font-weight: 700;
         display: flex; align-items: center; justify-content: center;
     }
-    .badge-admin    { background-color: #1d4ed8 !important; }
+    .badge-admin    { background-color: var(--color-primary) !important; }
     .badge-corretor { background-color: #0d9488 !important; }
 </style>
 {% endblock %}

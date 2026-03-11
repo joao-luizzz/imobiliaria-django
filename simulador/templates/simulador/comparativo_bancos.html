@@ -92,16 +92,19 @@
 const labels = {{ resultado.chart_labels|safe }};
 const primeiras = {{ resultado.chart_primeiras|safe }};
 const totais = {{ resultado.chart_totais|safe }};
-const clrs = ['#1a3c5e','#2e86c1','#3498db','#5dade2','#85c1e9'];
+const root = getComputedStyle(document.documentElement);
+const base = root.getPropertyValue('--color-primary').trim() || '#1B3A6B';
+const light = root.getPropertyValue('--color-primary-light').trim() || '#2e5ea3';
+const clrs = [base, light, '#3498db', '#5dade2', '#85c1e9'];
 new Chart(document.getElementById('chartPrimeiras'), {
   type: 'bar',
   data: {labels, datasets: [{label: '1ª Parcela (R$)', data: primeiras, backgroundColor: clrs}]},
-  options: {responsive: true, plugins: {legend:{display:false}, title:{display:true, text:'1ª Parcela por Banco'}}}
+  options: {responsive: true, animation: {duration: 600}, plugins: {legend:{display:false}, title:{display:true, text:'1ª Parcela por Banco'}}}
 });
 new Chart(document.getElementById('chartTotais'), {
   type: 'bar',
   data: {labels, datasets: [{label: 'Total Pago (R$)', data: totais, backgroundColor: clrs}]},
-  options: {responsive: true, plugins: {legend:{display:false}, title:{display:true, text:'Total Pago por Banco'}}}
+  options: {responsive: true, animation: {duration: 600}, plugins: {legend:{display:false}, title:{display:true, text:'Total Pago por Banco'}}}
 });
 </script>
 {% endif %}

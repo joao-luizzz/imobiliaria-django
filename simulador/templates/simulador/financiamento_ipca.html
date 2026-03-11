@@ -94,16 +94,20 @@
 const labels = {{ resultado.chart_labels|safe }};
 const primeiras = {{ resultado.chart_primeiras|safe }};
 const totais = {{ resultado.chart_totais|safe }};
-const bgColors = ['#198754','#0d6efd','#dc3545'];
+const bgColors = [
+  getComputedStyle(document.documentElement).getPropertyValue('--color-success').trim() || '#10b981',
+  getComputedStyle(document.documentElement).getPropertyValue('--color-primary').trim() || '#1B3A6B',
+  getComputedStyle(document.documentElement).getPropertyValue('--color-danger').trim() || '#ef4444'
+];
 new Chart(document.getElementById('chartPrimeiras'), {
   type: 'bar',
   data: {labels, datasets: [{label: '1ª Parcela (R$)', data: primeiras, backgroundColor: bgColors}]},
-  options: {responsive: true, plugins: {legend:{display:false}, title:{display:true, text:'1ª Parcela por Cenário'}}}
+  options: {responsive: true, animation: {duration: 600}, plugins: {legend:{display:false}, title:{display:true, text:'1ª Parcela por Cenário'}}}
 });
 new Chart(document.getElementById('chartTotais'), {
   type: 'bar',
   data: {labels, datasets: [{label: 'Total Pago (R$)', data: totais, backgroundColor: bgColors}]},
-  options: {responsive: true, plugins: {legend:{display:false}, title:{display:true, text:'Total Pago por Cenário'}}}
+  options: {responsive: true, animation: {duration: 600}, plugins: {legend:{display:false}, title:{display:true, text:'Total Pago por Cenário'}}}
 });
 </script>
 {% endif %}

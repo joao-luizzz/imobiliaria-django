@@ -1,26 +1,27 @@
 {% extends 'base.html' %}
 {% block title %}Log de Auditoria{% endblock %}
-{% block page_title %}Log de Auditoria{% endblock %}
+{% block page_title %}<i class="bi bi-shield-lock-fill me-2" aria-hidden="true"></i>Log de Auditoria{% endblock %}
 {% block content %}
-<div class="card mb-3">
-  <div class="card-header"><i class="bi bi-funnel me-2"></i>Filtros</div>
+<!-- UI MELHORIA: Filter card uses global .filter-card from custom.css -->
+<div class="card filter-card mb-3">
+  <div class="card-header"><i class="bi bi-funnel me-2" aria-hidden="true"></i>Filtros</div>
   <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" role="search" aria-label="Filtrar registros de auditoria">
       <div class="col-md-3">
-        <label class="form-label">Usuário</label>
-        <input type="text" class="form-control form-control-sm" name="usuario" value="{{ filtro_usuario }}" placeholder="username">
+        <label for="filtro_usuario" class="form-label">Usuário</label>
+        <input type="text" class="form-control form-control-sm" id="filtro_usuario" name="usuario" value="{{ filtro_usuario }}" placeholder="username" autofocus>
       </div>
       <div class="col-md-3">
-        <label class="form-label">Data</label>
-        <input type="date" class="form-control form-control-sm" name="data" value="{{ filtro_data }}">
+        <label for="filtro_data" class="form-label">Data</label>
+        <input type="date" class="form-control form-control-sm" id="filtro_data" name="data" value="{{ filtro_data }}">
       </div>
       <div class="col-md-3">
-        <label class="form-label">Ação</label>
-        <input type="text" class="form-control form-control-sm" name="acao" value="{{ filtro_acao }}" placeholder="Ex: Criou simulação">
+        <label for="filtro_acao" class="form-label">Ação</label>
+        <input type="text" class="form-control form-control-sm" id="filtro_acao" name="acao" value="{{ filtro_acao }}" placeholder="Ex: Criou simulação">
       </div>
       <div class="col-md-3 d-flex gap-2">
-        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search me-1"></i>Filtrar</button>
-        <a href="{% url 'simulador:logs_auditoria' %}" class="btn btn-sm btn-outline-secondary">Limpar</a>
+        <button type="submit" class="btn btn-sm btn-primary"><i class="bi bi-search me-1" aria-hidden="true"></i>Filtrar</button>
+        <a href="{% url 'simulador:logs_auditoria' %}" class="btn btn-sm btn-outline-secondary" aria-label="Limpar filtros">Limpar</a>
       </div>
     </form>
   </div>
@@ -28,13 +29,13 @@
 
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-shield-lock-fill me-2"></i>Registros de Auditoria</span>
-    <span class="badge bg-secondary">{{ page_obj.paginator.count }} registro(s)</span>
+    <span><i class="bi bi-shield-lock-fill me-2" aria-hidden="true"></i>Registros de Auditoria</span>
+    <span class="badge bg-white text-dark fw-semibold">{{ page_obj.paginator.count }} registro(s)</span>
   </div>
   <div class="card-body p-0">
     <div class="table-responsive">
       <table class="table table-hover table-sm mb-0">
-        <thead class="table-light">
+        <thead>
           <tr>
             <th>Data/Hora</th>
             <th>Usuário</th>
@@ -60,15 +61,15 @@
     </div>
   </div>
   {% if page_obj.has_other_pages %}
-  <div class="card-footer">
-    <nav>
+  <div class="card-footer bg-white border-top-0 py-3">
+    <nav aria-label="Paginação de registros de auditoria">
       <ul class="pagination pagination-sm mb-0 justify-content-center">
         {% if page_obj.has_previous %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}">«</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}" aria-label="Página anterior">&laquo;</a></li>
         {% endif %}
         <li class="page-item active"><a class="page-link" href="#">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</a></li>
         {% if page_obj.has_next %}
-        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}">»</a></li>
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&usuario={{ filtro_usuario }}&data={{ filtro_data }}&acao={{ filtro_acao }}" aria-label="Próxima página">&raquo;</a></li>
         {% endif %}
       </ul>
     </nav>

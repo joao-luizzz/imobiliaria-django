@@ -6,6 +6,7 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: Pipeline Kanban — using design tokens */
     .pipeline-wrapper {
         display: flex;
         gap: 16px;
@@ -15,37 +16,36 @@
         min-height: calc(100vh - 220px);
     }
 
-    /* Individual column */
     .pipeline-col {
         flex: 1;
         min-width: 220px;
         max-width: 320px;
         display: flex;
         flex-direction: column;
-        border-radius: 14px;
+        border-radius: var(--radius-xl);
         background: rgba(0,0,0,0.03);
         border: 2px dashed transparent;
-        transition: border-color 0.2s, background 0.2s;
+        transition: border-color var(--transition-fast), background var(--transition-fast);
     }
     [data-bs-theme="dark"] .pipeline-col { background: rgba(255,255,255,0.04); }
     .pipeline-col.drag-over {
-        border-color: #2e86c1;
-        background: rgba(46, 134, 193, 0.08);
+        border-color: var(--color-primary-light);
+        background: rgba(27,58,107,0.08);
     }
 
     .pipeline-col-header {
         padding: 12px 14px 10px;
-        border-radius: 12px 12px 0 0;
+        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: white;
-        box-shadow: 0 2px 6px rgba(0,0,0,0.07);
+        background: var(--color-surface);
+        box-shadow: var(--shadow-sm);
         position: sticky;
         top: 0;
         z-index: 10;
     }
-    [data-bs-theme="dark"] .pipeline-col-header { background: #1e293b; }
+    [data-bs-theme="dark"] .pipeline-col-header { background: var(--color-surface); }
     .pipeline-col-title {
         font-weight: 700;
         font-size: 0.85rem;
@@ -61,7 +61,6 @@
         color: white;
     }
 
-    /* Drop zone body */
     .pipeline-cards {
         flex: 1;
         padding: 10px 8px;
@@ -71,63 +70,53 @@
         gap: 10px;
     }
 
-    /* Simulation card */
     .sim-card {
-        background: white;
-        border-radius: 10px;
+        background: var(--color-surface);
+        border-radius: var(--radius-md);
         padding: 12px 14px;
-        box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+        box-shadow: var(--shadow-sm);
         cursor: grab;
         user-select: none;
-        transition: box-shadow 0.15s, transform 0.15s, opacity 0.15s;
-        border-left: 4px solid #e2e8f0;
+        transition: box-shadow var(--transition-fast), transform var(--transition-fast), opacity var(--transition-fast);
+        border-left: 4px solid var(--color-border);
     }
-    [data-bs-theme="dark"] .sim-card { background: #1e293b; border-left-color: #334155; }
+    [data-bs-theme="dark"] .sim-card { border-left-color: #334155; }
     .sim-card:active { cursor: grabbing; }
     .sim-card.dragging {
         opacity: 0.45;
         transform: scale(0.97);
-        box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+        box-shadow: var(--shadow-lg);
     }
-    .sim-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.13); }
+    .sim-card:hover { box-shadow: var(--shadow-md); }
 
-    /* Column border-left accent colors */
-    .col-novo      .sim-card { border-left-color: #6c757d; }
-    .col-em_analise .sim-card { border-left-color: #f59e0b; }
-    .col-aprovado  .sim-card { border-left-color: #10b981; }
-    .col-reprovado .sim-card { border-left-color: #ef4444; }
+    .col-novo      .sim-card { border-left-color: var(--color-neutral); }
+    .col-em_analise .sim-card { border-left-color: var(--color-warning); }
+    .col-aprovado  .sim-card { border-left-color: var(--color-success); }
+    .col-reprovado .sim-card { border-left-color: var(--color-danger); }
 
-    .sim-card .client-name { font-weight: 700; font-size: 0.88rem; color: #1a3c5e; margin-bottom: 4px; }
+    .sim-card .client-name { font-weight: 700; font-size: 0.88rem; color: var(--color-primary); margin-bottom: 4px; }
     [data-bs-theme="dark"] .sim-card .client-name { color: #93c5fd; }
     .sim-card .sim-value { font-size: 0.8rem; color: #059669; font-weight: 600; }
-    .sim-card .sim-meta { font-size: 0.73rem; color: #94a3b8; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .sim-card .sim-meta { font-size: 0.73rem; color: var(--color-text-muted); margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 
-    /* Empty column placeholder */
     .pipeline-empty {
         text-align: center;
         padding: 24px 12px;
-        color: #94a3b8;
+        color: var(--color-text-muted);
         font-size: 0.8rem;
         pointer-events: none;
     }
     .pipeline-empty i { font-size: 1.8rem; display: block; margin-bottom: 6px; opacity: 0.4; }
 
-    /* Drag ghost placeholder */
     .drag-placeholder {
-        border: 2px dashed #2e86c1;
-        border-radius: 10px;
+        border: 2px dashed var(--color-primary-light);
+        border-radius: var(--radius-md);
         height: 72px;
-        background: rgba(46,134,193,0.05);
+        background: rgba(27,58,107,0.05);
     }
 
-    /* Loading spinner overlay on card */
     .sim-card.loading { opacity: 0.5; pointer-events: none; }
 
-    /* Sistema badges */
-    .badge-sac   { background-color: #3b82f6 !important; }
-    .badge-price { background-color: #8b5cf6 !important; }
-
-    /* Scrollbar inside pipeline */
     .pipeline-wrapper::-webkit-scrollbar { height: 6px; }
     .pipeline-wrapper::-webkit-scrollbar-track { background: transparent; }
     .pipeline-wrapper::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
@@ -180,7 +169,9 @@
                 <div class="sim-card"
                      draggable="true"
                      data-pk="{{ sim.pk }}"
-                     id="sim-{{ sim.pk }}">
+                     id="sim-{{ sim.pk }}"
+                     role="listitem"
+                     aria-label="Simulação de {{ sim.cliente }} — R$ {{ sim.valor_imovel|brl }}">
                     <div class="client-name">
                         <i class="bi bi-person-fill me-1 opacity-50"></i>
                         {{ sim.cliente }}

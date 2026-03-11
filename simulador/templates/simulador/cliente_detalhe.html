@@ -6,16 +6,17 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: uses design tokens; badges, table, empty-state from custom.css */
     .info-card {
         border: none;
-        border-radius: 14px;
-        box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
     }
     .info-card .card-header {
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        background: var(--gradient-primary);
         color: white;
         font-weight: 600;
-        border-radius: 14px 14px 0 0 !important;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
         padding: 14px 20px;
     }
     .info-grid {
@@ -28,13 +29,13 @@
         font-size: 0.73rem;
         text-transform: uppercase;
         letter-spacing: 0.9px;
-        color: #64748b;
+        color: var(--color-text-muted);
         font-weight: 600;
         margin-bottom: 3px;
     }
     .info-grid dd {
         font-size: 0.95rem;
-        color: #1a3c5e;
+        color: var(--color-primary);
         font-weight: 500;
         margin: 0;
         word-break: break-word;
@@ -45,32 +46,12 @@
     [data-bs-theme="dark"] .info-grid dt { color: #94a3b8; }
     [data-bs-theme="dark"] .info-grid dd { color: #93c5fd; }
 
-    .table thead th {
-        background-color: #1a3c5e;
-        color: white;
-        font-weight: 500;
-        vertical-align: middle;
-        white-space: nowrap;
-    }
-    .table tbody td { vertical-align: middle; }
-    .table tbody tr:hover { background-color: #f0f7ff; }
-    [data-bs-theme="dark"] .table tbody tr:hover { background-color: rgba(59,130,246,0.12) !important; }
-
-    .badge-novo       { background-color: #6c757d; }
-    .badge-em_analise { background-color: #f59e0b; }
-    .badge-aprovado   { background-color: #10b981; }
-    .badge-reprovado  { background-color: #ef4444; }
-    .badge-sac        { background-color: #3b82f6; }
-    .badge-price      { background-color: #8b5cf6; }
-
-    .empty-state { text-align: center; padding: 50px 20px; color: #94a3b8; }
-    .empty-state i { font-size: 2.8rem; margin-bottom: 10px; display: block; }
     .btn-acao { padding: 3px 8px; font-size: 0.8rem; }
 
     .avatar-lg {
         width: 56px; height: 56px;
         border-radius: 50%;
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        background: var(--gradient-primary);
         color: white;
         display: inline-flex;
         align-items: center;
@@ -181,9 +162,8 @@
     </a>
 </div>
 
-<div class="card" style="border:none; border-radius:12px; box-shadow: 0 2px 12px rgba(0,0,0,0.07);">
-    <div class="card-header py-3"
-         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:12px 12px 0 0;">
+<div class="card">
+    <div class="card-header py-3">
         <i class="bi bi-table me-2"></i>Histórico de Simulações
     </div>
 

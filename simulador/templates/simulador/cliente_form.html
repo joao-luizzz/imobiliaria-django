@@ -12,16 +12,17 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: uses design tokens from custom.css */
     .form-card {
         border: none;
-        border-radius: 14px;
-        box-shadow: 0 2px 16px rgba(0,0,0,0.09);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
         max-width: 760px;
         margin: 0 auto;
     }
     .form-card .card-header {
-        border-radius: 14px 14px 0 0 !important;
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
+        background: var(--gradient-primary);
         color: white;
         font-weight: 600;
         padding: 16px 24px;
@@ -31,11 +32,11 @@
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 1.1px;
-        color: #64748b;
+        color: var(--color-text-muted);
         font-weight: 700;
         margin-bottom: 12px;
         padding-bottom: 6px;
-        border-bottom: 1px solid #e2e8f0;
+        border-bottom: 1px solid var(--color-border);
     }
     [data-bs-theme="dark"] .form-section-label {
         color: #94a3b8;
@@ -43,7 +44,7 @@
     }
     .field-required::after {
         content: " *";
-        color: #ef4444;
+        color: var(--color-danger);
         font-weight: 700;
     }
 </style>

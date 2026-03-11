@@ -6,16 +6,17 @@
 
 {% block extra_css %}
 <style>
+    /* UI MELHORIA: uses design tokens; table styles from custom.css */
     .meta-card {
         border: none;
-        border-radius: 14px;
-        box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-md);
     }
     .meta-card .card-header {
-        background: linear-gradient(135deg, #1a3c5e, #2e86c1);
+        background: var(--gradient-primary);
         color: white;
         font-weight: 600;
-        border-radius: 14px 14px 0 0 !important;
+        border-radius: var(--radius-xl) var(--radius-xl) 0 0 !important;
         padding: 14px 20px;
     }
 
@@ -28,18 +29,18 @@
         margin-bottom: 6px;
     }
     .progress-label .lbl { font-weight: 600; font-size: 0.88rem; }
-    .progress-label .nums { font-size: 0.8rem; color: #64748b; }
+    .progress-label .nums { font-size: 0.8rem; color: var(--color-text-muted); }
     [data-bs-theme="dark"] .progress-label .nums { color: #94a3b8; }
-    .progress { border-radius: 8px; height: 18px; }
-    .progress-bar { border-radius: 8px; font-size: 0.72rem; font-weight: 700; transition: width 0.7s ease; }
+    .progress { border-radius: var(--radius-md); height: 18px; }
+    .progress-bar { border-radius: var(--radius-md); font-size: 0.72rem; font-weight: 700; transition: width 0.7s ease; }
     .progress-pct {
         font-size: 1.5rem;
         font-weight: 800;
-        color: #1a3c5e;
+        color: var(--color-primary);
         line-height: 1;
     }
     [data-bs-theme="dark"] .progress-pct { color: #93c5fd; }
-    .progress-achieved { color: #059669; }
+    .progress-achieved { color: var(--color-success); }
 
     /* KPI row */
     .kpi-row {
@@ -51,28 +52,16 @@
     .kpi-item {
         flex: 1;
         min-width: 160px;
-        background: #f8fafc;
-        border-radius: 10px;
+        background: var(--color-bg);
+        border-radius: var(--radius-lg);
         padding: 14px 18px;
         text-align: center;
     }
     [data-bs-theme="dark"] .kpi-item { background: #1e293b; }
-    .kpi-item .val { font-size: 1.5rem; font-weight: 800; color: #1a3c5e; }
+    .kpi-item .val { font-size: 1.5rem; font-weight: 800; color: var(--color-primary); }
     [data-bs-theme="dark"] .kpi-item .val { color: #93c5fd; }
-    .kpi-item .lbl { font-size: 0.75rem; color: #64748b; margin-top: 3px; }
+    .kpi-item .lbl { font-size: 0.75rem; color: var(--color-text-muted); margin-top: 3px; }
     [data-bs-theme="dark"] .kpi-item .lbl { color: #94a3b8; }
-
-    /* History table */
-    .table thead th {
-        background-color: #1a3c5e;
-        color: white;
-        font-weight: 500;
-        vertical-align: middle;
-        white-space: nowrap;
-    }
-    .table tbody td { vertical-align: middle; }
-    .table tbody tr:hover { background-color: #f0f7ff; }
-    [data-bs-theme="dark"] .table tbody tr:hover { background-color: rgba(59,130,246,0.12) !important; }
 
     .btn-acao { padding: 3px 8px; font-size: 0.8rem; }
 
@@ -231,8 +220,7 @@
 
 <!-- Historical goals table -->
 <div class="meta-card card">
-    <div class="card-header py-3"
-         style="background: linear-gradient(135deg,#1a3c5e,#2e86c1); color:white; border-radius:14px 14px 0 0 !important;">
+    <div class="card-header py-3">
         <i class="bi bi-clock-history me-2"></i>Histórico de Metas (últimos 12 meses)
     </div>
 
